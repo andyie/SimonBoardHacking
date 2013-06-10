@@ -123,6 +123,11 @@ bool isButtonPressed(unsigned int button)
   return !digitalRead(simon_button_pin_mapping[button - 1]);
 }
 
+void buzz(unsigned int freq)
+{
+  tone(BUZZER1, freq);
+}
+
 void setup()
 {
   pinMode(UPPER_LEFT_LED, OUTPUT);
@@ -140,6 +145,11 @@ void setup()
   pinMode(UPPER_RIGHT_BUTTON, INPUT_PULLUP);
   pinMode(LOWER_LEFT_BUTTON, INPUT_PULLUP);
   pinMode(LOWER_RIGHT_BUTTON, INPUT_PULLUP);
+
+  pinMode(BUZZER1, OUTPUT);
+  pinMode(BUZZER2, OUTPUT);
+
+  digitalWrite(BUZZER1, LOW);
 }
 
 void loop()
