@@ -2,10 +2,17 @@
 #include "SimonBoardHacking.h"
 #include "hardware_versions.h"
 
+// Button LED definitions.
 #define UPPER_LEFT_LED LED_RED
 #define UPPER_RIGHT_LED LED_GREEN
 #define LOWER_LEFT_LED LED_BLUE
 #define LOWER_RIGHT_LED LED_YELLOW
+
+// Button definitions.
+#define UPPER_LEFT_BUTTON BUTTON_RED
+#define UPPER_RIGHT_BUTTON BUTTON_GREEN
+#define LOWER_LEFT_BUTTON BUTTON_BLUE
+#define LOWER_RIGHT_BUTTON BUTTON_YELLOW
 
 #define DIM(array) (sizeof(array) / sizeof((array)[0]))
 #define LAST_LED_INDEX (DIM(simon_led_pin_mapping))
@@ -28,7 +35,7 @@ extern void repeat();
  * 9: A4 pin.
  * 10: A5 pin.
  */
-unsigned int simon_led_pin_mapping[] =
+static unsigned int simon_led_pin_mapping[] =
 {
   UPPER_LEFT_LED,
   UPPER_RIGHT_LED,
@@ -42,20 +49,34 @@ unsigned int simon_led_pin_mapping[] =
   A5
 };
 
+static unsigned int simon_button_pin_mapping[] =
+{
+  UPPER_LEFT_BUTTON,
+  UPPER_RIGHT_BUTTON,
+  LOWER_LEFT_BUTTON,
+  LOWER_RIGHT_BUTTON
+};
+
+static bool valid_simon_led_pin(unsigned int simon_pin)
+{
+  // Range [1, dim(simon_led_pin_mapping)] okay.
+  return simon_pin > 0 && simon_pin <= DIM(simon_led_pin_mapping);
+}
+
+static bool valid_simon_button_pin(unsigned int simon_pin)
+{
+  // Range [1, dim(simon_button_pin_mapping)] okay.
+  return simon_pin > 0 && simon_pin <= DIM(simon_button_pin_mapping);
+}
+
 void waitThisManySeconds(float seconds)
 {
   delay((unsigned int)(seconds * 1000));
 }
 
-bool valid_simon_pin(unsigned int simon_pin)
-{
-  // Range [1, dim(simon_led_pin_mapping)] okay.
-  return simon_pin <= DIM(simon_led_pin_mapping);
-}
-
 bool turnOnLED(unsigned int simon_pin)
 {
-  if (!valid_simon_pin(simon_pin))
+  if (!valid_simon_led_pin(simon_pin))
   {
     return false;
   }
@@ -66,7 +87,7 @@ bool turnOnLED(unsigned int simon_pin)
 
 bool turnOffLED(unsigned int simon_pin)
 {
-  if (!valid_simon_pin(simon_pin))
+  if (!valid_simon_led_pin(simon_pin))
   {
     return false;
   }
@@ -91,6 +112,17 @@ bool turnOnAllLEDs()
   }
 }
 
+bool isButtonPressed(unsigned int button)
+{
+  if (!valid_simon_button_pin(button))
+  {
+    // Nonexistent buttons are not pressed.
+    return false;
+  }
+
+  return !digitalRead(simon_button_pin_mapping[button - 1]);
+}
+
 void setup()
 {
   pinMode(UPPER_LEFT_LED, OUTPUT);
@@ -103,6 +135,11 @@ void setup()
   pinMode(A3, OUTPUT);
   pinMode(A4, OUTPUT);
   pinMode(A5, OUTPUT);
+
+  pinMode(UPPER_LEFT_BUTTON, INPUT_PULLUP);
+  pinMode(UPPER_RIGHT_BUTTON, INPUT_PULLUP);
+  pinMode(LOWER_LEFT_BUTTON, INPUT_PULLUP);
+  pinMode(LOWER_RIGHT_BUTTON, INPUT_PULLUP);
 }
 
 void loop()
