@@ -14,6 +14,10 @@
 #define LOWER_LEFT_BUTTON BUTTON_BLUE
 #define LOWER_RIGHT_BUTTON BUTTON_YELLOW
 
+// Buzzer definitions.
+#define DEFAULT_BUZZ_FREQUENCY 400
+
+// Other utilities.
 #define DIM(array) (sizeof(array) / sizeof((array)[0]))
 #define LAST_LED_INDEX (DIM(simon_led_pin_mapping))
 
@@ -98,18 +102,22 @@ bool turnOffLED(unsigned int simon_pin)
 
 bool turnOffAllLEDs()
 {
-  for (unsigned int i = 1; i <= LAST_LED_INDEX; ++i)
-  {
-    turnOffLED(i);
+  for (unsigned int i = 1; i <= LAST_LED_INDEX; ++i) {
+    if (!turnOffLED(i)) {
+      return false;
+    }
   }
+  return true;
 }
 
 bool turnOnAllLEDs()
 {
-  for (unsigned int i = 0; i <= LAST_LED_INDEX; ++i)
-  {
-    turnOnLED(i);
+  for (unsigned int i = 1; i <= LAST_LED_INDEX; ++i) {
+    if (!turnOnLED(i)) {
+      return false;
+    }
   }
+  return true;
 }
 
 bool isButtonPressed(unsigned int button)
@@ -123,9 +131,19 @@ bool isButtonPressed(unsigned int button)
   return !digitalRead(simon_button_pin_mapping[button - 1]);
 }
 
-void buzz(unsigned int freq)
+void startBuzzing(unsigned int freq)
 {
   tone(BUZZER1, freq);
+}
+
+void startBuzzing()
+{
+  startBuzzing(DEFAULT_BUZZ_FREQUENCY);
+}
+
+void stopBuzzing()
+{
+  noTone(BUZZER1);
 }
 
 void setup()

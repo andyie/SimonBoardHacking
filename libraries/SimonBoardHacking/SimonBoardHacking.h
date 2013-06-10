@@ -18,6 +18,8 @@ bool turnOnAllLEDs();
 bool isButtonPressed(unsigned int button);
 
 // Tone functions.
-void buzz(unsigned int freq);
+void startBuzzing();
+void startBuzzing(unsigned int freq);
+void stopBuzzing();
 
 #endif
