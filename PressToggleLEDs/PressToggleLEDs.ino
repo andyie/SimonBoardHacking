@@ -1,3 +1,19 @@
+/*
+
+COMMAND LEDs TO TURN ON.
+
+****** 1. What's this? **********
+
+This program makes the upper LEDs and the lower-left LED (LEDs 1, 2, and 3) turn on when
+you press their buttons.
+
+****** 2. What's your job? **********
+
+1) Add some code to make the lower-right LED turn on when you press its button.
+
+ */
+
+#include "Utility.h"
 #include "SimonBoardHacking.h"
 
 void repeat()
@@ -22,11 +38,6 @@ void repeat()
   if (isButtonPressed(3) == false) {
     turnOffLED(3);
   }
-  
-  if (isButtonPressed(4) == true) {
-    turnOnLED(4);
-  }
-  if (isButtonPressed(4) == false) {
-    turnOffLED(4);
-  }
+
+  // Add your code here to make LED #4 turn on when you press its button.
 }

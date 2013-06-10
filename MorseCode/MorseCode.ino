@@ -1,3 +1,24 @@
+/*
+
+MORSE CODE EXERCISE.
+
+****** 1. What's this? **********
+
+We wrote a little text-to-Morse-Code translator. Here's your chance to tinker with it.
+
+The actual translation part isn't here. If you're wondering where it is, we "imported"
+it below with the code "#include "Morse.h"".
+
+****** 2. What's your job? **********
+
+The translator knows what Morse code dots and dashes go with each letter of the alphabet,
+but it doesn't know how to show them to you, the user. Your job is to tell it how to do
+this. Read the comments below and listen to the speaker for more details :)
+
+ */
+
+// You can ignore this stuff.
+#include "Utility.h"
 #include "SimonBoardHacking.h"
 #include "Morse.h"
 
