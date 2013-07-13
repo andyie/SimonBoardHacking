@@ -19,20 +19,20 @@
 #define DEFAULT_BUZZ_FREQUENCY 400
 
 // Time seconds.
-void waitThisManySeconds(float seconds);
+void wait_this_many_seconds(float seconds);
 
 // LED functions.
-bool turnOnLED(unsigned int simon_pin);
-bool turnOffLED(unsigned int simon_pin);
-bool turnOffAllLEDs();
-bool turnOnAllLEDs();
+bool turn_on_LED(unsigned int simon_pin);
+bool turn_off_LED(unsigned int simon_pin);
+bool turn_off_all_LEDs();
+bool turn_on_all_LEDs();
 
 // Button functions.
-bool isButtonPressed(unsigned int button);
+bool is_button_pressed(unsigned int button);
 
 // Tone functions.
-void startBuzzing();
-void startBuzzing(unsigned int freq);
-void stopBuzzing();
+void start_buzzing();
+void start_buzzing(unsigned int freq);
+void stop_buzzing();
 
 #endif
