@@ -55,12 +55,12 @@ static bool valid_simon_button_pin(unsigned int simon_pin)
   return simon_pin > 0 && simon_pin <= DIM(simon_button_pin_mapping);
 }
 
-void waitThisManySeconds(float seconds)
+void wait_this_many_seconds(float seconds)
 {
   delay((unsigned int)(seconds * 1000));
 }
 
-bool turnOnLED(unsigned int simon_pin)
+bool turn_on_LED(unsigned int simon_pin)
 {
   if (!valid_simon_led_pin(simon_pin))
   {
@@ -71,7 +71,7 @@ bool turnOnLED(unsigned int simon_pin)
   return true;
 }
 
-bool turnOffLED(unsigned int simon_pin)
+bool turn_off_LED(unsigned int simon_pin)
 {
   if (!valid_simon_led_pin(simon_pin))
   {
@@ -82,27 +82,27 @@ bool turnOffLED(unsigned int simon_pin)
   return true;
 }
 
-bool turnOffAllLEDs()
+bool turn_off_all_LEDs()
 {
   for (unsigned int i = 1; i <= LAST_LED_INDEX; ++i) {
-    if (!turnOffLED(i)) {
+    if (!turn_off_LED(i)) {
       return false;
     }
   }
   return true;
 }
 
-bool turnOnAllLEDs()
+bool turn_on_all_LEDs()
 {
   for (unsigned int i = 1; i <= LAST_LED_INDEX; ++i) {
-    if (!turnOnLED(i)) {
+    if (!turn_on_LED(i)) {
       return false;
     }
   }
   return true;
 }
 
-bool isButtonPressed(unsigned int button)
+bool is_button_pressed(unsigned int button)
 {
   if (!valid_simon_button_pin(button))
   {
@@ -113,17 +113,17 @@ bool isButtonPressed(unsigned int button)
   return !digitalRead(simon_button_pin_mapping[button - 1]);
 }
 
-void startBuzzing(unsigned int freq)
+void start_buzzing(unsigned int freq)
 {
   tone(BUZZER1, freq);
 }
 
-void startBuzzing()
+void start_buzzing()
 {
-  startBuzzing(DEFAULT_BUZZ_FREQUENCY);
+  start_buzzing(DEFAULT_BUZZ_FREQUENCY);
 }
 
-void stopBuzzing()
+void stop_buzzing()
 {
   noTone(BUZZER1);
 }

@@ -4,27 +4,27 @@
 
 void whatToDoOnStartDot()
 {
-  turnOnLED(1);
+  turn_on_LED(1);
 }
 
 void whatToDoOnEndDot()
 {
-  turnOffLED(1);
+  turn_off_LED(1);
 }
 
 void whatToDoOnStartDash()
 {
-  turnOnLED(1);
+  turn_on_LED(1);
 }
 
 void whatToDoOnEndDash()
 {
-  turnOffLED(1);
+  turn_off_LED(1);
 }
 
 void repeat()
 {
   morse("TAKE ME TO YOUR LEADER");
 
-  waitThisManySeconds(1);
+  wait_this_many_seconds(1);
 }

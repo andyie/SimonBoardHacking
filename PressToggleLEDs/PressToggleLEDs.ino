@@ -3,24 +3,24 @@
 
 void repeat()
 {
-  if (isButtonPressed(1) == true) {
-    turnOnLED(1);
+  if (is_button_pressed(1) == true) {
+    turn_on_LED(1);
   }
-  if (isButtonPressed(1) == false) {
-    turnOffLED(1);
-  }
-
-  if (isButtonPressed(2) == true) {
-    turnOnLED(2);
-  }
-  if (isButtonPressed(2) == false) {
-    turnOffLED(2);
+  if (is_button_pressed(1) == false) {
+    turn_off_LED(1);
   }
 
-  if (isButtonPressed(3) == true) {
-    turnOnLED(3);
+  if (is_button_pressed(2) == true) {
+    turn_on_LED(2);
   }
-  if (isButtonPressed(3) == false) {
-    turnOffLED(3);
+  if (is_button_pressed(2) == false) {
+    turn_off_LED(2);
+  }
+
+  if (is_button_pressed(3) == true) {
+    turn_on_LED(3);
+  }
+  if (is_button_pressed(3) == false) {
+    turn_off_LED(3);
   }
 }
