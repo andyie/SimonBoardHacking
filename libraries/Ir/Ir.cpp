@@ -3,7 +3,11 @@
 #include "../RingBuffer/RingBuffer.h"
 #include "stdint.h"
 
-int transmissions = 0;
+bool samples[1024];
+size_t sample_cursor = 0;
+
+extern bool schedule[];
+extern size_t schedule_len;
 
 /*
  * Hardware allocations:
@@ -49,6 +53,18 @@ int transmissions = 0;
  */
 #define SYMBOL_GAP_LENGTH 2
 
+/**
+ * The TX timer top value. Each run of the timer should be UNIT_TIME.
+ * CPU / 64 = 125kHz, and it takes 62.5 counts at 125kHz to reach 500us.
+ */
+#define TX_TIMER_TOP 63
+
+/**
+ * The IR LED timer top value. The signal toggles each run of the timer:
+ * Frequency = 8 MHz / (2 * 104) = 38.46kHz.
+ */
+#define IR_TIMER_TOP 104
+
 /*
  * RX definitions.
  */
@@ -69,21 +85,25 @@ int transmissions = 0;
  * The number of symbol samples which may be accepted before the current symbol
  * times out.
  */
-#define MAX_SYMBOL_SAMPLES (4 * SAMPLES_PER_UNIT_TIME + \
-    SAMPLES_PER_UNIT_TIME / 2)
+#define MAX_SYMBOL_SAMPLES (8 * SAMPLES_PER_UNIT_TIME)
 
 /**
  * The number of gap samples which may be accepted before the next symbol times
  * out.
  */
-#define MAX_GAP_SAMPLES (SYMBOL_GAP_LENGTH * SAMPLES_PER_UNIT_TIME + \
-    SAMPLES_PER_UNIT_TIME / 2)
+#define MAX_GAP_SAMPLES (2 * SYMBOL_GAP_LENGTH * SAMPLES_PER_UNIT_TIME)
 
 /**
  * Fudge interval in sample counts. Naturally, this interval should not be so
  * large that a given sample count could be taken as more than one symbol.
  */
 #define SAMPLE_FUDGE 6
+
+/**
+ * RX timer top value. Each run of the timer should be UNIT_TIME / 16.
+ * CPU = 8MHz, and it takes 250 counts at 8MHz to reach 500us / 16 = 31.25us.
+ */
+#define RX_TIMER_TOP 250
 
 /**
  * The different symbol types.
@@ -123,6 +143,12 @@ RingBuffer<IR_RX_BUFFER_SIZE> ir_rx_buffer;
 /*
  * TX worker state.
  */
+
+/**
+ * Whether TX is already started. This is so that ir_tx_start() can be made
+ * idempotent.
+ */
+bool tx_started = false;
 
 /**
  * The current TX schedule. No word should take longer than 64 * UNIT_TIME to
@@ -201,6 +227,8 @@ symbol_t get_symbol_from_pulse(size_t count);
  * Initialize the IR communications module.
  */
 void ir_init() {
+  pinMode(A2, OUTPUT);
+
   ir_tx_init();
   ir_rx_init();
 
@@ -221,12 +249,7 @@ void ir_rx_init() {
    */
   TCCR1A = 0;
   TCCR1B = _BV(WGM12);
-
-  /*
-   * Each run of the timer should be UNIT_TIME / 16. CPU = 8MHz, and it takes
-   * 250 counts at 8MHz to reach 500us/16 = 31.25us.
-   */
-  OCR1A = 250;
+  OCR1A = RX_TIMER_TOP;
 
   /*
    * Enable compare match interrupt.
@@ -237,7 +260,7 @@ void ir_rx_init() {
    * Enable pin change interrupt 1 for IR receiver falling edge detection. Only
    * enable PCINT9 (PC1, Arduino A1).
    */
-  PCMSK1 |= PCINT9;
+  PCMSK1 |= _BV(PCINT9);
 
   ir_rx_edge_enable();
 }
@@ -257,12 +280,7 @@ void ir_tx_init() {
    */
   TCCR0A = _BV(WGM01);
   TCCR0B = 0;
-
-  /*
-   * Each run of the timer should be UNIT_TIME. CPU / 64 = 125kHz, and it takes
-   * 62.5 counts at 125kHz to reach 500us.
-   */
-  OCR0A = 62;
+  OCR0A = TX_TIMER_TOP;
 
   /*
    * Enable compare match interrupt.
@@ -286,12 +304,7 @@ void ir_tx_init() {
    */
   TCCR2A = _BV(WGM21) | _BV(WGM20);
   TCCR2B = _BV(WGM22) | _BV(CS20);
-
-  /*
-   * Signal toggles every run of the timer: Frequency = 8 MHz / (2 * 104) =
-   * 38.46kHz.
-   */
-  OCR2A = 104;
+  OCR2A = IR_TIMER_TOP;
 
   /*
    * Turn on the IR LED. This is the LED's passive state.
@@ -316,8 +329,8 @@ void ir_rx_start() {
   /*
    * Reset the timer and set CPU/1 prescaling.
    */
-  TCNT1 = 0;
-  TCCR1B = _BV(CS10);
+  TCNT1 = RX_TIMER_TOP - 1;
+  TCCR1B |= _BV(CS10);
 }
 
 /**
@@ -340,8 +353,15 @@ void ir_rx_stop() {
  */
 void ir_tx_start() {
   /*
-   * TODO: Skip if it's already started!!
+   * Ignore repeated calls. This releases users from having to maintain TX
+   * state. It also means TX can turn itself off without telling anyone.
    */
+  if (tx_started) {
+    return;
+  }
+
+  tx_started = true;
+
   /*
    * Reset TX state.
    */
@@ -349,6 +369,10 @@ void ir_tx_start() {
 
   /*
    * Reset the timer and set CPU/64 prescaling.
+   *
+   * TODO: Initializing TCNT0 to TX_TIMER_TOP - 1 gives weird results. The
+   * receiver only receives the last UNIT_TIME's worth of the start symbol.
+   * Initializing to 0 is okay...
    */
   TCNT0 = 0;
   TCCR0B = _BV(CS01) | _BV(CS00);
@@ -359,6 +383,7 @@ void ir_tx_start() {
  */
 void ir_tx_stop()
 {
+  tx_started = false;
   TCCR0B &= ~(_BV(CS01) | _BV(CS00));
 }
 
@@ -369,7 +394,7 @@ void ir_rx_edge_enable() {
   /*
    * Enable pin change interrupt 1.
    */
-  PCICR |= PCIE1;
+  PCICR |= _BV(PCIE1);
 }
 
 /**
@@ -379,7 +404,7 @@ void ir_rx_edge_disable() {
   /*
    * Disable pin change interrupt 1.
    */
-  PCICR &= ~PCIE1;
+  PCICR &= ~_BV(PCIE1);
 }
 
 /**
@@ -408,9 +433,10 @@ void ir_led_off() {
  */
 ISR(PCINT1_vect) {
   /*
-   * Check the IR receiver pin. If it is low, proceed.
+   * The level indicates whether an IR signal is present. The negation is to
+   * adjust for the IR receiver using negative logic.
    */
-  bool level = digitalRead(IR_RECEIVER_PIN);
+  bool level = !digitalRead(IR_RECEIVER_PIN);
 
   /*
    * The level is high. In practice, this should not occur. Anyway, let it be.
@@ -420,7 +446,7 @@ ISR(PCINT1_vect) {
   }
 
   /*
-   * This was a falling edge. Disable this interrupt and start the RX worker.
+   * The level is low. Proceed with RX sampling.
    */
   ir_rx_edge_disable();
   ir_rx_start();
@@ -437,35 +463,43 @@ ISR(TIMER0_COMPA_vect) {
   if (tx_schedule_cursor == 0) {
     /*
      * TODO: Possibly enable interrupts during this part. And disable the timer
-     * 0 interrupt!
+     * 0 interrupt! Also, possibly pause timer 0 while this mapping is going on.
+     * Otherwise, the next character might be sent immediately.
      */
     /*
      * Another word must be fetched.
      */
-    tx_schedule_prepare(0xAA);
+    char c;
+    if (ir_tx_buffer.get(c) != 0) {
+      ir_tx_stop();
+      return;
+    }
 
-    transmissions++;
+    tx_schedule_prepare(c);
   }
 
-  if (tx_schedule[tx_schedule_cursor]) {
+  if (tx_schedule_cursor < tx_schedule_len) {
+    if (tx_schedule[tx_schedule_cursor]) {
+      /*
+       * An asserted signal means an off LED.
+       */
+      ir_led_off();
+    } else {
+      /*
+       * An un-asserted signal means an on LED.
+       */
+      ir_led_on();
+    }
+
     /*
-     * An asserted signal means an off LED.
+     * Increment the cursor, resetting to zero if the schedule is exhausted. The
+     * IR LED is left on at the end of the schedule.
      */
-    ir_led_off();
+    ++tx_schedule_cursor;
   } else {
     /*
-     * An un-asserted signal means an on LED.
+     * Finish up a just-completed transmission.
      */
-    ir_led_on();
-  }
-
-  /*
-   * Increment the cursor, resetting to zero if the schedule is exhausted. The
-   * IR LED is left on at the end of the schedule.
-   */
-  ++tx_schedule_cursor;
-
-  if (tx_schedule_cursor == tx_schedule_len) {
     tx_schedule_cursor = 0;
     ir_led_on();
   }
@@ -478,7 +512,20 @@ ISR(TIMER0_COMPA_vect) {
  * when either a word is received or the signal is determined to be noise.
  */
 ISR(TIMER1_COMPA_vect) {
-  bool level = digitalRead(IR_RECEIVER_PIN);
+  /*
+   * Level indicates whether an IR signal is present or not. The negation is
+   * because the IR receiver has negative logic.
+   */
+  bool level = !digitalRead(IR_RECEIVER_PIN);
+
+  /*
+  if (sample_cursor < sizeof(samples)) {
+    samples[sample_cursor++] = level;
+  } else {
+    ir_rx_stop();
+  }
+  return;
+  */
 
   if (level == rx_level) {
     /*
@@ -518,8 +565,15 @@ ISR(TIMER1_COMPA_vect) {
     }
 
     /*
-     * Clear the edge counter and update the current level.
+     * Save the last pulse count.
      */
+    size_t pulse_count = rx_level_count;
+
+    /*
+     * Reset the level counter, clear the edge counter, and update the current
+     * level.
+     */
+    rx_level_count = rx_edge_count;
     rx_edge_count = 0;
     rx_level = level;
 
@@ -533,8 +587,7 @@ ISR(TIMER1_COMPA_vect) {
     /*
      * This is the end of a symbol.
      */
-
-    symbol_t symbol = get_symbol_from_pulse(rx_level_count);
+    symbol_t symbol = get_symbol_from_pulse(pulse_count);
     bool fail = false;
 
     if (rx_symbol_count == 0) {
@@ -552,11 +605,11 @@ ISR(TIMER1_COMPA_vect) {
        */
       switch (symbol) {
         case symbol_0:
-          rx_byte <<= 1;
+          rx_byte >>= 1;
           break;
 
         case symbol_1:
-          rx_byte = (rx_byte << 1) | 1;
+          rx_byte = (rx_byte >> 1) | 0x80u;
           break;
 
         default:
@@ -589,14 +642,13 @@ ISR(TIMER1_COMPA_vect) {
 
     ++rx_symbol_count;
 
-    /*
-     * Wrap this byte up if it's done.
-     */
     if (rx_symbol_count == 10) {
       /*
-       * TODO: This is where we'd push the byte into the ring buffer.
+       * Word reception has completed. Push the byte to the ring buffer and
+       * deactivate the RX worker.
        */
-
+        digitalWrite(A2, HIGH);
+      ir_rx_buffer.put(rx_byte);
       ir_rx_stop();
     }
   }
