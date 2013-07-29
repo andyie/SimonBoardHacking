@@ -1,6 +1,8 @@
 #ifndef RING_BUFFER_H
 #define RING_BUFFER_H
 
+#include <stddef.h>
+
 /**
  * A super-lightweight ring buffer class. Only byte-wise operations are
  * supported. Using powers of two for the buffer size is strongly recommended.

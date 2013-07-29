@@ -1,54 +1,49 @@
 #include <stdlib.h>
 #include <Ir.h>
+#include <RingBuffer.h>
+
+static char data[128];
+
+extern RingBuffer<IR_RX_BUFFER_SIZE> ir_rx_buffer;
 
 void setup()
 {
-  Serial.begin(9600);
+  ir_init();
+  Serial.begin(57600);
 }
 
 void loop()
 {
-  /* TX test
-  char data;
   
-  transmit_chars("hello", 5);
+  //Serial.println("Started");
   
-  for (int i = 0; i < 8; i++)
-  {
-    pop_tx_char(data);
-    Serial.println(data, HEX);
-  }
+  size_t len = 128;
   
-  Serial.println();
-  Serial.println();
-  */
-
-  char* data;
-  size_t len;  
+  transmit_chars("Hello world", 11);
+  
+  
+  char c;
+  int st = ir_rx_buffer.get(c);
+  
+  //Serial.print("Status = ");
+  //Serial.println(st);
   
   /*
-  for(size_t i = 0; i < 8; i++)
+  if (st == 0)
   {
-    char c;
-    pop_rx_char(c);
-    Serial.println(c, HEX);
+      Serial.print("c = ");
+      Serial.println((unsigned char)c, HEX);
   }
   */
-  
+    
   receive_chars(data, len);
-  
   
   Serial.print("len = ");
   Serial.println(len, DEC);
   
-  
-  for (size_t i = 0; i < len; i++)
+  for (size_t i = 0; i < len; ++i)
   {
     Serial.print(data[i]);
   }
   
-  Serial.println();
-  
-  
-  delay(1000);
 }

@@ -11,10 +11,8 @@
 #define IR_RX_BUFFER_SIZE 128
 
 void ir_init();
-void ir_led_on();
-void ir_led_off();
 
 int transmit_chars(char* data, size_t len); 
-void receive_chars(char* & data, size_t & len);
+void receive_chars(char* data, size_t & len);
 
 #endif
