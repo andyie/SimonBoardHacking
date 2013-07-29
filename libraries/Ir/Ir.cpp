@@ -3,12 +3,6 @@
 #include "../RingBuffer/RingBuffer.h"
 #include "stdint.h"
 
-bool samples[1024];
-size_t sample_cursor = 0;
-
-extern bool schedule[];
-extern size_t schedule_len;
-
 /*
  * Hardware allocations:
  *
@@ -517,15 +511,6 @@ ISR(TIMER1_COMPA_vect) {
    * because the IR receiver has negative logic.
    */
   bool level = !digitalRead(IR_RECEIVER_PIN);
-
-  /*
-  if (sample_cursor < sizeof(samples)) {
-    samples[sample_cursor++] = level;
-  } else {
-    ir_rx_stop();
-  }
-  return;
-  */
 
   if (level == rx_level) {
     /*
