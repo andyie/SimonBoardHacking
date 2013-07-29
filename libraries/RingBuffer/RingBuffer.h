@@ -52,6 +52,26 @@ public:
     return 0;
   }
 
+  /**
+   * Get the number of chars currently stored in the ring buffer.
+   *
+   * @return The number of chars stored in the ring buffer.
+   */
+  size_t num_elements() 
+  {
+    if (head > tail)
+    {
+      //All characters are stored between head and tail
+      return head - tail;
+    }
+    else
+    {
+      //All characters are stored outside of head and tail
+      return size - (tail - head);
+    }
+  }
+
+
 private:
   /**
    * Index of where to write the next character.

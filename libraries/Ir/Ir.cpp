@@ -82,6 +82,11 @@
 #define SAMPLE_FUDGE 6
 
 /**
+ * Start byte for all datagrams that are sent and received
+ */
+#define DATAGRAM_START_CHAR ((char)0xA7)
+
+/**
  * TX ring buffer.
  */
 RingBuffer<IR_TX_BUFFER_SIZE> ir_tx_buffer;
@@ -146,16 +151,40 @@ static unsigned short rx_edge_count = 0;
  */
 size_t tx_schedule_len = 0;
 
+/*
+ * The length of the datagram that is currently being decoded
+ */ 
+static size_t current_rx_datagram_length = 0;
+
 static void ir_tx_init();
+static void ir_rx_init();
 
 static void ir_rx_start();
 static void ir_rx_stop();
 
+static void ir_rx_on();
+static void ir_rx_off();
+
 static void ir_tx_start();
 static void ir_tx_stop();
 
+static void calculate_crc8();
+
 static void tx_schedule_prepare( uint8_t tx_byte);
 static void tx_schedule_append_pulse(bool level, size_t len);
+
+static int build_and_stage_datagram(char* chars, size_t num_chars);
+static void decode_datagram(char* & chars, size_t & num_chars);
+
+void ir_rx_on()
+{
+
+}
+
+void ir_rx_off()
+{
+
+}
 
 /**
  * Initialize the IR communications module.
@@ -394,9 +423,10 @@ ISR(TIMER1_COMPA_vect) {
     /*
      * Cancel if the level count has exceeded the maximum.
      */
-    const unsigned int max_samples == level
+     //TODO:Check
+    const unsigned int max_samples = level
         ? MAX_GAP_SAMPLES
-        : MAX_SYMBOL_SAMPELS;
+        : MAX_SYMBOL_SAMPLES;
     if (rx_level_count > max_samples) {
       ir_rx_off();
     }
@@ -522,4 +552,190 @@ void tx_schedule_append_pulse(bool level, size_t len) {
   for (size_t i = 0; i < len; ++i) {
     tx_schedule[tx_schedule_cursor++] = level;
   }
+}
+
+char calculate_crc8(char* chars, uint8_t num_chars)
+{
+  return (char)0xDF;
+}
+
+/**
+ * Creates a datagram using the chars stored in data as the payload
+ *
+ * @param data The chars that should be in the payload
+ * @param len The number of chars that should be sent from data
+ *
+ * @return An error code; 0 = success, other = failure
+ */
+int build_and_stage_datagram(char* data, size_t len)
+{
+  /*
+   * Packet format:
+   * [start byte] [length byte] [byte 0] [byte 1] … [byte len - 1] [checksum]
+   */
+
+  if (ir_tx_buffer.put(DATAGRAM_START_CHAR))
+  {
+    //Failed to put data into ir_tx_buffer
+    return -1;
+  }
+
+  if (ir_tx_buffer.put((char)len))
+  {
+    return -1;
+  }
+
+  for(size_t i = 0; i < len; i++)
+  {
+    if (ir_tx_buffer.put(data[i]))
+    {
+      return -1;
+    }
+  }
+  
+  char crc8 = calculate_crc8(data, len);
+  
+  if (ir_tx_buffer.put(crc8))
+  {
+    return -1;
+  }
+  
+  return 0;
+}
+
+/**
+ * Attempts to read a datagram from the ir_rx_buffer;
+ * If successful, fills data with the datagram's payload
+ * and fills len with the number of chars in the payload;
+ * Otherwise, sets data to NULL and len to 0
+ *
+ * @param data A pointer to the datagram's payload, or NULL
+ *             if no datagram was present
+ *
+ * @param len The number of chars in the decoded datagram's payload
+ *            or 0 if no datagram was present
+ *
+ */
+void decode_datagram(char* & data, size_t & len)
+{
+  char current_char = 0;
+
+  if (current_rx_datagram_length == 0)
+  {
+     /*
+      * We aren't in the middle of a datagram;
+      * Find a start byte and a length byte:
+      *
+      * Loop until either only one char is left or 
+      * until we find a start byte
+      */
+    while(ir_rx_buffer.num_elements() >= 2 && current_char != DATAGRAM_START_CHAR)
+    {
+      ir_rx_buffer.get(current_char);
+    }
+
+    /*
+     * Exit if a datagram start byte wasn't found
+     */
+    if (current_char != DATAGRAM_START_CHAR)
+    {
+      data = NULL;
+      len = 0;
+      return;
+    }
+
+    /*
+     * Found a datagram start byte; now set the length byte
+     */
+     ir_rx_buffer.get(current_char);
+
+     current_rx_datagram_length = (size_t)current_char;
+  }
+
+  /*
+   * Either we found a datagram start byte or we are already in the middle
+   * of a datagram; check if enough bytes exist to complete the datagram;
+   *
+   * We require current_rx_datagram_length + 1 bytes;
+   * The +1 is because of the CRC
+   */
+   if (ir_rx_buffer.num_elements() < current_rx_datagram_length + 1)
+   {
+      //We're missing bytes; exit
+      data = NULL;
+      len = 0;
+      return;
+   }
+
+    /*
+     * An entire datagram is present;
+     * Store all the bytes
+     */
+   data = new char[current_rx_datagram_length];
+   len = current_rx_datagram_length;
+
+   for (size_t i = 0; i < current_rx_datagram_length; ++i)
+   {
+       ir_rx_buffer.get(data[i]);
+   }
+
+   /*
+    * Check the CRC
+    */
+   char crc8 = calculate_crc8(data, len);
+   ir_rx_buffer.get(current_char);
+
+   if (current_char != crc8)
+   {
+     //This datagram is invalid; free memory
+     //and exit
+     delete[] data;
+
+     data = NULL;
+     len = 0;
+     return;
+   }
+
+   /*
+    * Datagram is valid; reset the current_datagram_length
+    * to look for a new datagram the next time this function is called
+    */
+    current_rx_datagram_length = 0;
+
+    return;
+}
+
+/**
+ * Sends len chars from data over ir
+ *
+ * @param data The chars that should be sent
+ * @param len The number of chars that should be sent
+ *
+ * @return An error code; 0 = success, other = failure
+ */
+int transmit_chars(char* data, size_t len)
+{
+  build_and_stage_datagram(data, len);
+}
+
+/**
+ * Attempts to pull a string from the ir rx buffer;
+ * If a full segment of data is present, fills data with the string
+ * and fills len with the number of chars in the string;
+ * Otherwise, sets data to NULL and len to 0
+ *
+ * @param data A pointer to the received data, or NULL
+ *             if incomplete data was present
+ *
+ * @param len The number of chars in the received data
+ *            or 0 if incomplete data was present
+ *
+ */
+void receive_chars(char* & data, size_t & len)
+{
+  decode_datagram(data, len);
+
+  //TODO: Check if payload matches signal
+  //Call callback functions
+  //Clear data
 }
