@@ -26,7 +26,7 @@ public:
       return -1;
     }
 
-    *head = c;
+    buf[head] = c;
     head = (head + 1) % size;
 
     return 0;
@@ -46,7 +46,7 @@ public:
       return -1;
     }
 
-    c = *tail;
+    c = buf[tail];
     tail = (tail + 1) % size;
 
     return 0;
