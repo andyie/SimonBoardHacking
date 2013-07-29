@@ -176,16 +176,6 @@ static void tx_schedule_append_pulse(bool level, size_t len);
 static int build_and_stage_datagram(char* chars, size_t num_chars);
 static void decode_datagram(char* & chars, size_t & num_chars);
 
-void ir_rx_on()
-{
-
-}
-
-void ir_rx_off()
-{
-
-}
-
 /**
  * Initialize the IR communications module.
  */
