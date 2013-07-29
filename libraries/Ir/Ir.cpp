@@ -3,6 +3,8 @@
 #include "../RingBuffer/RingBuffer.h"
 #include "stdint.h"
 
+int transmissions = 0;
+
 /*
  * Hardware allocations:
  *
@@ -12,14 +14,16 @@
  */
 
 /**
- * The Arduino pin connected to the IR LED. Set to 11 for OC2A.
+ * The Arduino pin connected to the IR LED. Set to 11 for OC2A. This must not
+ * change without changes to the rest of the code.
  */
 #define IR_LED_PIN 11
 
 /**
- * The Arduino pin connected to the IR receiver.
+ * The Arduino pin connected to the IR receiver. A1 = PCINT9, PC1. This must not
+ * change without changes to the rest of the code.
  */
-#define IR_RECEIVER_PIN A5
+#define IR_RECEIVER_PIN A1
 
 /*
  * TX definitions.
@@ -43,7 +47,7 @@
 /**
  * Inter-symbol spacing.
  */
-#define INTER_SYMBOL_LENGTH 2
+#define SYMBOL_GAP_LENGTH 2
 
 /*
  * RX definitions.
@@ -72,7 +76,7 @@
  * The number of gap samples which may be accepted before the next symbol times
  * out.
  */
-#define MAX_GAP_SAMPLES (INTER_SYMBOL_LENGTH * SAMPLES_PER_UNIT_TIME + \
+#define MAX_GAP_SAMPLES (SYMBOL_GAP_LENGTH * SAMPLES_PER_UNIT_TIME + \
     SAMPLES_PER_UNIT_TIME / 2)
 
 /**
@@ -80,6 +84,31 @@
  * large that a given sample count could be taken as more than one symbol.
  */
 #define SAMPLE_FUDGE 6
+
+/**
+ * The different symbol types.
+ */
+enum symbol_t {
+  /**
+   * Start.
+   */
+  symbol_start,
+
+  /**
+   * Logical 0.
+   */
+  symbol_0,
+
+  /**
+   * Logical 1.
+   */
+  symbol_1,
+
+  /**
+   * Unrecognized symbol.
+   */
+  symbol_unrecognized
+};
 
 /**
  * TX ring buffer.
@@ -109,13 +138,18 @@ bool tx_schedule[64];
 static size_t tx_schedule_cursor = 0;
 
 /*
+ * The TX schedule length.
+ */
+size_t tx_schedule_len;
+
+/*
  * RX worker state.
  */
 
 /**
  * The current signal that is being tracked by the receiver.
  */
-static bool rx_level = false;
+static bool rx_level;
 
 /**
  * The RX byte currently being received.
@@ -126,12 +160,12 @@ static uint8_t rx_byte;
  * Tracks the current symbol being received. Symbol 0 is the start symbol, and
  * symbol 9 is the parity symbol. The intervening symbols are data bits.
  */
-static unsigned short rx_symbol_count = 0;
+static unsigned short rx_symbol_count;
 
 /**
  * The number of contiguous samples that have indicated a constant level.
  */
-static unsigned short rx_level_count = 0;
+static unsigned short rx_level_count;
 
 /**
  * The number of contiguous samples what have indicated an edge has occurred. If
@@ -139,13 +173,9 @@ static unsigned short rx_level_count = 0;
  * concluded. If the signal returns to the original level before this count is
  * reached, this count is added to rx_level_count (the glitch is ignored).
  */
-static unsigned short rx_edge_count = 0;
+static unsigned short rx_edge_count;
 
-/*
- * The TX schedule length.
- */
-size_t tx_schedule_len = 0;
-
+static void ir_rx_init();
 static void ir_tx_init();
 
 static void ir_rx_start();
@@ -154,8 +184,18 @@ static void ir_rx_stop();
 static void ir_tx_start();
 static void ir_tx_stop();
 
-static void tx_schedule_prepare( uint8_t tx_byte);
+static void ir_rx_edge_enable();
+static void ir_rx_edge_disable();
+
+static void ir_led_on();
+static void ir_led_off();
+
+static void tx_schedule_prepare(uint8_t tx_byte);
+static void tx_schedule_append_symbol(symbol_t symbol);
+static void tx_schedule_append_gap();
 static void tx_schedule_append_pulse(bool level, size_t len);
+
+symbol_t get_symbol_from_pulse(size_t count);
 
 /**
  * Initialize the IR communications module.
@@ -163,6 +203,8 @@ static void tx_schedule_append_pulse(bool level, size_t len);
 void ir_init() {
   ir_tx_init();
   ir_rx_init();
+
+  ir_tx_start();
 }
 
 /**
@@ -190,6 +232,14 @@ void ir_rx_init() {
    * Enable compare match interrupt.
    */
   TIMSK1 |= _BV(OCIE1A);
+
+  /*
+   * Enable pin change interrupt 1 for IR receiver falling edge detection. Only
+   * enable PCINT9 (PC1, Arduino A1).
+   */
+  PCMSK1 |= PCINT9;
+
+  ir_rx_edge_enable();
 }
 
 /**
@@ -258,6 +308,7 @@ void ir_rx_start() {
    * starting level is false (low).
    */
   rx_level = false;
+  rx_byte = 0;
   rx_symbol_count = 0;
   rx_level_count = 0;
   rx_edge_count = 0;
@@ -273,13 +324,24 @@ void ir_rx_start() {
  * Stops the RX worker.
  */
 void ir_rx_stop() {
+  /*
+   * Disable the worker's interrupt.
+   */
   TCCR1B &= ~_BV(CS10);
+
+  /*
+   * Enable the falling edge interrupt again.
+   */
+  ir_rx_edge_enable();
 }
 
 /**
  * Starts the TX worker.
  */
 void ir_tx_start() {
+  /*
+   * TODO: Skip if it's already started!!
+   */
   /*
    * Reset TX state.
    */
@@ -301,7 +363,27 @@ void ir_tx_stop()
 }
 
 /**
- * Turn the IR LED on.
+ * Enables the RX edge interrupt.
+ */
+void ir_rx_edge_enable() {
+  /*
+   * Enable pin change interrupt 1.
+   */
+  PCICR |= PCIE1;
+}
+
+/**
+ * Disables the RX edge interrupt.
+ */
+void ir_rx_edge_disable() {
+  /*
+   * Disable pin change interrupt 1.
+   */
+  PCICR &= ~PCIE1;
+}
+
+/**
+ * Turn the IR LED on (at its modulation frequency).
  */
 void ir_led_on() {
   /*
@@ -321,6 +403,30 @@ void ir_led_off() {
 }
 
 /**
+ * IR receiver edge ISR. If a falling edge has occurred, this interrupt will be
+ * disabled, and the RX worker will be started.
+ */
+ISR(PCINT1_vect) {
+  /*
+   * Check the IR receiver pin. If it is low, proceed.
+   */
+  bool level = digitalRead(IR_RECEIVER_PIN);
+
+  /*
+   * The level is high. In practice, this should not occur. Anyway, let it be.
+   */
+  if (level) {
+    return;
+  }
+
+  /*
+   * This was a falling edge. Disable this interrupt and start the RX worker.
+   */
+  ir_rx_edge_disable();
+  ir_rx_start();
+}
+
+/**
  * TX worker. This function serves as an ISR for performing physical-layer work
  * necessary to transmit messages a word at a time. If data is available for
  * transmission, the worker should be started with a call to ir_tx_start(). When
@@ -328,12 +434,6 @@ void ir_led_off() {
  * disable itself with isr_tx_end().
  */
 ISR(TIMER0_COMPA_vect) {
-  static unsigned long slowdown = 200;
-  if (slowdown-- != 0) {
-    return;
-  }
-  slowdown = 200;
-
   if (tx_schedule_cursor == 0) {
     /*
      * TODO: Possibly enable interrupts during this part. And disable the timer
@@ -343,6 +443,8 @@ ISR(TIMER0_COMPA_vect) {
      * Another word must be fetched.
      */
     tx_schedule_prepare(0xAA);
+
+    transmissions++;
   }
 
   if (tx_schedule[tx_schedule_cursor]) {
@@ -358,13 +460,14 @@ ISR(TIMER0_COMPA_vect) {
   }
 
   /*
-   * Increment the cursor, resetting to zero if the schedule is exhausted.
+   * Increment the cursor, resetting to zero if the schedule is exhausted. The
+   * IR LED is left on at the end of the schedule.
    */
   ++tx_schedule_cursor;
 
   if (tx_schedule_cursor == tx_schedule_len) {
     tx_schedule_cursor = 0;
-    ir_led_off();
+    ir_led_on();
   }
 }
 
@@ -379,7 +482,7 @@ ISR(TIMER1_COMPA_vect) {
 
   if (level == rx_level) {
     /*
-     * The level is remaining constant. Increment rx_level_count.\
+     * The level is constant. Increment rx_level_count.
      */
     ++rx_level_count;
 
@@ -394,11 +497,11 @@ ISR(TIMER1_COMPA_vect) {
     /*
      * Cancel if the level count has exceeded the maximum.
      */
-    const unsigned int max_samples == level
+    const unsigned int max_samples = (level
         ? MAX_GAP_SAMPLES
-        : MAX_SYMBOL_SAMPELS;
+        : MAX_SYMBOL_SAMPLES);
     if (rx_level_count > max_samples) {
-      ir_rx_off();
+      ir_rx_stop();
     }
   } else {
     /*
@@ -415,43 +518,86 @@ ISR(TIMER1_COMPA_vect) {
     }
 
     /*
-     * Update the current level.
+     * Clear the edge counter and update the current level.
      */
+    rx_edge_count = 0;
     rx_level = level;
 
     /*
      * If the last level was a gap, no further action is required.
      */
-    if (level) {
+    if (!level) {
       return;
     }
 
     /*
      * This is the end of a symbol.
      */
+
+    symbol_t symbol = get_symbol_from_pulse(rx_level_count);
+    bool fail = false;
+
     if (rx_symbol_count == 0) {
       /*
        * Expecting a start symbol.
        */
-      if (rx_level_count < START_SYMBOL_LENGTH * SAMPLES_PER_UNIT_TIME -
-              SAMPLE_FUDGE ||
-          rx_level_count > START_SYMBOL_LENGTH * SAMPLES_PER_UNIT_TIME +
-              SAMPLE_FUDGE)
+      if (symbol != symbol_start)
       {
-        ir_rx_off();
-        return;
+        fail = true;
       }
     }
     else if (rx_symbol_count >= 1 && rx_symbol_count <= 8) {
       /*
        * Expecting a logical 1 or 0.
        */
-      if (rx_level_count >= LOGIC_0_SYMBOL_LENGTH * SAMPLES_PER_UNIT_TIME -
-              SAMPLE_FUDGE &&
-          rx_level_count <= LOGIC_0_SYMBOL_LENGTH * SAMPLES_PER_UNIT_TIME +
-              SAMPLE_FUDGE) {
-        
+      switch (symbol) {
+        case symbol_0:
+          rx_byte <<= 1;
+          break;
+
+        case symbol_1:
+          rx_byte = (rx_byte << 1) | 1;
+          break;
+
+        default:
+          fail = true;
+          break;
       }
+    }
+    else if (rx_symbol_count == 9) {
+      /*
+       * Expecting a parity bit.
+       */
+      bool even_parity;
+      unsigned short bit_count = 0;
+      for (unsigned short i = 0; i < 8; ++i) {
+        if (rx_byte & (1u << i)) {
+          ++bit_count;
+        }
+      }
+      even_parity = (bit_count % 2 == 0) ? symbol_0 : symbol_1;
+
+      if (symbol != even_parity) {
+        fail = true;
+      }
+    }
+
+    if (fail) {
+      ir_rx_stop();
+      return;
+    }
+
+    ++rx_symbol_count;
+
+    /*
+     * Wrap this byte up if it's done.
+     */
+    if (rx_symbol_count == 10) {
+      /*
+       * TODO: This is where we'd push the byte into the ring buffer.
+       */
+
+      ir_rx_stop();
     }
   }
 }
@@ -468,12 +614,8 @@ static void tx_schedule_prepare(uint8_t tx_byte) {
   /*
    * Record the start symbol.
    */
-  tx_schedule_append_pulse(true, START_SYMBOL_LENGTH);
-
-  /*
-   * Gap.
-   */
-  tx_schedule_append_pulse(false, INTER_SYMBOL_LENGTH);
+  tx_schedule_append_symbol(symbol_start);
+  tx_schedule_append_gap();
 
   /*
    * Word data.
@@ -487,28 +629,55 @@ static void tx_schedule_prepare(uint8_t tx_byte) {
      */
     if (bit) {
       ++parity;
-      tx_schedule_append_pulse(true, LOGIC_1_SYMBOL_LENGTH);
+      tx_schedule_append_symbol(symbol_1);
     } else {
-      tx_schedule_append_pulse(true, LOGIC_0_SYMBOL_LENGTH);
+      tx_schedule_append_symbol(symbol_0);
     }
-
-    /*
-     * Gap.
-     */
-    tx_schedule_append_pulse(false, INTER_SYMBOL_LENGTH);
+    tx_schedule_append_gap();
   }
 
   /*
-   * Write parity bit.
+   * Write even parity bit. Don't include a gap at the end.
    */
-  if (parity) {
-    tx_schedule_append_pulse(true, LOGIC_1_SYMBOL_LENGTH);
+  if (parity % 2 != 0) {
+    tx_schedule_append_symbol(symbol_1);
   } else {
-    tx_schedule_append_pulse(true, LOGIC_0_SYMBOL_LENGTH);
+    tx_schedule_append_symbol(symbol_0);
   }
 
   tx_schedule_len = tx_schedule_cursor;
   tx_schedule_cursor = 0;
+}
+
+/**
+ * Appends the indicated symbol to the TX schedule. No gap is added.
+ *
+ * @param symbol The symbol to add.
+ */
+void tx_schedule_append_symbol(symbol_t symbol) {
+  switch (symbol) {
+    case symbol_start:
+      tx_schedule_append_pulse(true, START_SYMBOL_LENGTH);
+      break;
+
+    case symbol_0:
+      tx_schedule_append_pulse(true, LOGIC_0_SYMBOL_LENGTH);
+      break;
+
+    case symbol_1:
+      tx_schedule_append_pulse(true, LOGIC_1_SYMBOL_LENGTH);
+      break;
+
+    default:
+      break;
+  }
+}
+
+/**
+ * Appends a gap to the TX schedule.
+ */
+void tx_schedule_append_gap() {
+  tx_schedule_append_pulse(false, SYMBOL_GAP_LENGTH);
 }
 
 /**
@@ -522,4 +691,30 @@ void tx_schedule_append_pulse(bool level, size_t len) {
   for (size_t i = 0; i < len; ++i) {
     tx_schedule[tx_schedule_cursor++] = level;
   }
+}
+
+/**
+ * Returns the symbol corresponding to the given signal pulse width.
+ *
+ * @param len The number of samples for the pulse.
+ *
+ * @return The symbol corresponding with the pulse.
+ */
+symbol_t get_symbol_from_pulse(size_t count) {
+  if (count >= START_SYMBOL_LENGTH * SAMPLES_PER_UNIT_TIME - SAMPLE_FUDGE &&
+      count <= START_SYMBOL_LENGTH * SAMPLES_PER_UNIT_TIME + SAMPLE_FUDGE) {
+    return symbol_start;
+  }
+
+  if (count >= LOGIC_0_SYMBOL_LENGTH * SAMPLES_PER_UNIT_TIME - SAMPLE_FUDGE &&
+      count <= LOGIC_0_SYMBOL_LENGTH * SAMPLES_PER_UNIT_TIME + SAMPLE_FUDGE) {
+    return symbol_0;
+  }
+
+  if (count >= LOGIC_1_SYMBOL_LENGTH * SAMPLES_PER_UNIT_TIME - SAMPLE_FUDGE &&
+      count <= LOGIC_1_SYMBOL_LENGTH * SAMPLES_PER_UNIT_TIME + SAMPLE_FUDGE) {
+    return symbol_1;
+  }
+
+  return symbol_unrecognized;
 }
