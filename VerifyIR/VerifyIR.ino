@@ -14,6 +14,8 @@ size_t schedule_len = 0;
 void setup()
 {
   ir_tx_buffer.put('A');
+  ir_tx_buffer.put('B');
+  ir_tx_buffer.put('C');
 
   ir_init();
 

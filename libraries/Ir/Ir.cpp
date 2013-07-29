@@ -621,14 +621,15 @@ ISR(TIMER1_COMPA_vect) {
       /*
        * Expecting a parity bit.
        */
-      bool even_parity;
+      symbol_t even_parity;
       unsigned short bit_count = 0;
       for (unsigned short i = 0; i < 8; ++i) {
         if (rx_byte & (1u << i)) {
           ++bit_count;
         }
       }
-      even_parity = (bit_count % 2 == 0) ? symbol_0 : symbol_1;
+
+      even_parity = ((bit_count % 2) == 0) ? symbol_0 : symbol_1;
 
       if (symbol != even_parity) {
         fail = true;
@@ -647,7 +648,7 @@ ISR(TIMER1_COMPA_vect) {
        * Word reception has completed. Push the byte to the ring buffer and
        * deactivate the RX worker.
        */
-        digitalWrite(A2, HIGH);
+      digitalWrite(A2, HIGH);
       ir_rx_buffer.put(rx_byte);
       ir_rx_stop();
     }
