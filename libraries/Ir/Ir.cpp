@@ -15,6 +15,12 @@
  */
 
 /**
+ * IR signal polarity. If true, the signal will be low when idle. When false,
+ * the signal will be high when idle.
+ */
+#define IR_POSITIVE_POLARITY true
+
+/**
  * The Arduino pin connected to the IR LED. Set to 11 for OC2A. This must not
  * change without changes to the rest of the code.
  */
@@ -111,7 +117,7 @@
  */
 #define DATAGRAM_START_BYTE ((char)0xA7)
 
-/*
+/**
  * RX timer top value. Each run of the timer should be UNIT_TIME / 16.
  * CPU = 8MHz, and it takes 250 counts at 8MHz to reach 500us / 16 = 31.25us.
  */
@@ -238,6 +244,10 @@ static void ir_tx_stop();
 static void ir_rx_edge_enable();
 static void ir_rx_edge_disable();
 
+static void ir_led_deassert();
+static void ir_led_assert();
+static bool ir_receiver_asserted();
+
 static void ir_led_on();
 static void ir_led_off();
 
@@ -289,8 +299,8 @@ void ir_rx_init() {
   TIMSK1 |= _BV(OCIE1A);
 
   /*
-   * Enable pin change interrupt 1 for IR receiver falling edge detection. Only
-   * enable PCINT9 (PC1, Arduino A1).
+   * Enable pin change interrupt 1 for IR receiver edge detection. Only enable
+   * PCINT9 (PC1, Arduino A1).
    */
   PCMSK1 |= _BV(PCINT9);
 
@@ -339,9 +349,9 @@ void ir_tx_init() {
   OCR2A = IR_TIMER_TOP;
 
   /*
-   * Turn on the IR LED. This is the LED's passive state.
+   * De-assert the IR LED.
    */
-  ir_led_on();
+  ir_led_deassert();
 }
 
 /**
@@ -460,7 +470,52 @@ void ir_rx_edge_disable() {
 }
 
 /**
- * Turn the IR LED on (at its modulation frequency).
+ * Assert the IR LED. This happens during symbols. When using positive polarity,
+ * the LED is on while asserted. Otherwise, it is off.
+ */
+void ir_led_assert() {
+  if (IR_POSITIVE_POLARITY) {
+    ir_led_on();
+  } else {
+    ir_led_off();
+  }
+}
+
+/**
+ * De-assert the IR LED. This happens between symbols and words. When using
+ * positive polarity, the LED is off while de-asserted. Otherwise, it is on.
+ */
+void ir_led_deassert() {
+  if (IR_POSITIVE_POLARITY) {
+    ir_led_off();
+  } else {
+    ir_led_on();
+  }
+}
+
+/**
+ * Indicates whether the IR signal is currently asserted. This depends on the
+ * current polarity setting.
+ *
+ * @return True if the current IR signal is asserted.
+ */
+bool ir_receiver_asserted() {
+  /*
+   * Grab a sample from the receiver. The negative accounts for the receiver
+   * internally using negative logic. A true value here indicates that an IR
+   * signal does exist.
+   */
+  bool sample = !digitalRead(IR_RECEIVER_PIN);
+
+  /*
+   * With positive logic, a true sample means the signal is asserted. With
+   * negative logic, the opposite is true.
+   */
+  return IR_POSITIVE_POLARITY ? sample : !sample;
+}
+
+/**
+ * Turn the IR LED on, at 38kHz.
  */
 void ir_led_on() {
   /*
@@ -485,15 +540,14 @@ void ir_led_off() {
  */
 ISR(PCINT1_vect) {
   /*
-   * The level indicates whether an IR signal is present. The negation is to
-   * adjust for the IR receiver using negative logic.
+   * The level indicates whether an IR signal is present.
    */
-  bool level = !digitalRead(IR_RECEIVER_PIN);
+  bool asserted = ir_receiver_asserted();
 
   /*
-   * The level is high. In practice, this should not occur. Anyway, let it be.
+   * IR is not asserted. In practice, this should not occur. Anyway, let it be.
    */
-  if (level) {
+  if (!asserted) {
     return;
   }
 
@@ -535,12 +589,12 @@ ISR(TIMER0_COMPA_vect) {
       /*
        * An asserted signal means an off LED.
        */
-      ir_led_off();
+      ir_led_assert();
     } else {
       /*
        * An un-asserted signal means an on LED.
        */
-      ir_led_on();
+      ir_led_deassert();
     }
 
     /*
@@ -553,7 +607,7 @@ ISR(TIMER0_COMPA_vect) {
      * Finish up a just-completed transmission.
      */
     tx_schedule_cursor = 0;
-    ir_led_on();
+    ir_led_deassert();
   }
 }
 
@@ -565,10 +619,9 @@ ISR(TIMER0_COMPA_vect) {
  */
 ISR(TIMER1_COMPA_vect) {
   /*
-   * Level indicates whether an IR signal is present or not. The negation is
-   * because the IR receiver has negative logic.
+   * Level indicates whether an IR signal is asserted or not.
    */
-  bool level = !digitalRead(IR_RECEIVER_PIN);
+  bool level = ir_receiver_asserted();
 
   if (level == rx_level) {
     /*
@@ -623,7 +676,7 @@ ISR(TIMER1_COMPA_vect) {
     /*
      * If the last level was a gap, no further action is required.
      */
-    if (!level) {
+    if (level) {
       return;
     }
 
