@@ -18,6 +18,19 @@
  */
 #define BUTTON_SRSLY_THRESHOLD 100
 
+/**
+ * The number of checks required in order for buffered serial data to be
+ * transmitted. The number of buffered characters must be constant for this
+ * amount of time, or exceed the TX threshold.
+ */
+#define SERIAL_TX_SRSLY_THRESHOLD 100
+
+/**
+ * The serial TX threshold. If at least this many bytes are available for
+ * sending, they will be sent regardless of the current "srsly" count.
+ */
+#define SERIAL_TX_THRESHOLD 128
+
 extern void hear_event_event_upper_left_light_on();
 extern void hear_event_event_upper_left_light_off();
 extern void hear_event_event_upper_right_light_on();
@@ -26,6 +39,7 @@ extern void hear_event_event_lower_left_light_on();
 extern void hear_event_event_lower_left_light_off();
 extern void hear_event_event_lower_right_light_on();
 extern void hear_event_event_lower_right_light_off();
+extern void handle_string(const char *recv_str, size_t recv_len);
 
 /**
  * The different message types.
@@ -73,9 +87,25 @@ bool previous_button_states[] = {
 };
 
 /**
+ * The number of serial bytes previously recorded as ready for transmission.
+ */
+size_t string_tx_byte_count = 0;
+
+/**
+ * The number of iterations that the number of serial bytes recorded as ready
+ * for transmission has remained constant.
+ */
+size_t string_tx_byte_count_constant = 0;
+
+/**
  * A buffer for characters.
  */
 char buf[BUFFER_SIZE];
+
+/**
+ * Buffer for sending strings, used by announce_string().
+ */
+char str_buf[BUFFER_SIZE + 1];
 
 void handle_local_events();
 void execute_and_emit_light_on(int light);
@@ -89,6 +119,7 @@ int process_string(const char *buf, size_t len);
  */
 void repeat() {
   Serial.begin(57600);
+  Serial.setTimeout(0);
 
   /*
    * Initialize IR interface.
@@ -112,6 +143,26 @@ void repeat() {
     while (ir_read(buf, len) == 0) {
       process_message(buf, len);
     }
+
+    /*
+     * Process any strings waiting to be transmitted.
+     */
+    len = Serial.readBytes(buf + string_tx_byte_count,
+                           sizeof(buf) - string_tx_byte_count);
+    if (len == 0 && string_tx_byte_count > 0) {
+      ++string_tx_byte_count_constant;
+    } else {
+      string_tx_byte_count_constant = 0;
+    }
+
+    string_tx_byte_count += len;
+
+    if (string_tx_byte_count_constant >= SERIAL_TX_SRSLY_THRESHOLD ||
+        string_tx_byte_count >= SERIAL_TX_THRESHOLD) {
+      announce_string(buf, string_tx_byte_count);
+      string_tx_byte_count = 0;
+      string_tx_byte_count_constant = 0;
+    }
   }
 }
 
@@ -126,10 +177,35 @@ int announce_event(event_t event) {
   buf[0] = message_type_event;
   buf[1] = event;
 
-  Serial.print("sending event: ");
-  Serial.println(event, DEC);
-
   return ir_write(buf, 2);
+}
+
+/**
+ * Announces a null-terminated string to a remote IR host.
+ *
+ * @param buf The null-terminated buffer to announce.
+ *
+ * @return 0 on success, -1 on failure.
+ */
+int announce_string(const char *buf) {
+  return announce_string(buf, strlen(buf) + 1);
+}
+
+/**
+ * Announces a string to a remote IR host. The string must be small enough to
+ * fit in an IR datagram.
+ *
+ *
+ * @param buf The buffer to announce.
+ * @param len The buffer length.
+ *
+ * @return 0 on success, -1 on failure.
+ */
+int announce_string(const char *buf, size_t len) {
+  str_buf[0] = message_type_string;
+  memcpy(str_buf + 1, buf, len);
+
+  return ir_write(str_buf, len + 1);
 }
 
 /**
@@ -270,16 +346,14 @@ int process_event(event_t event) {
     return -1;
   }
 
-  Serial.print("got event: ");
-  Serial.println(index, DEC);
-
   event_handlers[index]();
 
   return 0;
 }
 
 /**
- * Processes a received string.
+ * Processes a received string. Strings are always written to Serial. They may
+ * also be processed by handlers.
  *
  * @param buf The string.
  * @param len The string length.
@@ -287,5 +361,10 @@ int process_event(event_t event) {
  * @return 0 on success, -1 on failure.
  */
 int process_string(const char *buf, size_t len) {
+  Serial.write(reinterpret_cast<const uint8_t *>(buf), len);
+  Serial.println();
+
+  handle_string(buf, len);
+
   return 0;
 }
