@@ -44,5 +44,4 @@ hear_event(event_lower_left_light_off) {
 }
 
 hear_string() {
-  announce_string(received_string);
 }
