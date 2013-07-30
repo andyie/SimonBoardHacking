@@ -12,6 +12,12 @@
  */
 #define BUFFER_SIZE 128
 
+/**
+ * The number of checks required in order for a button state change to be taken
+ * seriously.
+ */
+#define BUTTON_SRSLY_THRESHOLD 100
+
 extern void hear_event_event_upper_left_light_on();
 extern void hear_event_event_upper_left_light_off();
 extern void hear_event_event_upper_right_light_on();
@@ -41,6 +47,18 @@ void (*event_handlers[])() = {
   hear_event_event_lower_left_light_off,
   hear_event_event_lower_right_light_on,
   hear_event_event_lower_right_light_off
+};
+
+/**
+ * The "srsly" counter for each of the buttons. A button state change will only
+ * be recorded when the "srsly" count gets about a certain threshold. This is to
+ * avoid bouncing effects.
+ */
+unsigned int button_srsly_counts[] = {
+  0,
+  0,
+  0,
+  0
 };
 
 /**
@@ -121,6 +139,14 @@ void handle_local_events() {
   for (size_t i = 0; i < 4; ++i) {
     bool current_state = is_button_pressed(i);
     if (current_state != previous_button_states[i]) {
+      button_srsly_counts[i]++;
+      if (button_srsly_counts[i] < BUTTON_SRSLY_THRESHOLD) {
+        return;
+      }
+
+      previous_button_states[i] = current_state;
+      button_srsly_counts[i] = 0;
+
       switch (current_state) {
         case true:
           execute_and_emit_light_on(i);
@@ -130,8 +156,8 @@ void handle_local_events() {
           execute_and_emit_light_off(i);
           break;
       }
-
-      previous_button_states[i] = current_state;
+    } else {
+      button_srsly_counts[i] = 0;
     }
   }
 }
