@@ -3,34 +3,16 @@
 
 void startupDisplayRepeat()
 {
-  turn_on_light(1);
+  turn_on_light(upper_left_led);
   wait_this_many_seconds(0.05);
 
-  turn_on_light(2);
+  turn_on_light(upper_right_led);
   wait_this_many_seconds(0.05);
 
-  turn_on_light(3);
+  turn_on_light(lower_right_led);
   wait_this_many_seconds(0.05);
 
-  turn_on_light(4);
-  wait_this_many_seconds(0.05);
-
-  turn_on_light(5);
-  wait_this_many_seconds(0.05);
-
-  turn_on_light(6);
-  wait_this_many_seconds(0.05);
-
-  turn_on_light(7);
-  wait_this_many_seconds(0.05);
-
-  turn_on_light(8);
-  wait_this_many_seconds(0.05);
-
-  turn_on_light(9);
-  wait_this_many_seconds(0.05);
-
-  turn_on_light(10);
+  turn_on_light(lower_left_led);
   wait_this_many_seconds(0.05);
 
   turn_off_all_lights();

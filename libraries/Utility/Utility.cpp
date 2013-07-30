@@ -90,7 +90,7 @@ bool turn_off_all_lights()
 
 bool turn_on_all_lights()
 {
-  for (unsigned int i = 0; i <= 4; ++i) {
+  for (unsigned int i = 0; i < 4; ++i) {
     if (!turn_on_light(i)) {
       return false;
     }
