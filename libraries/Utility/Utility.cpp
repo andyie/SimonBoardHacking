@@ -9,48 +9,24 @@
  *
  * 1: Upper left button LED.
  * 2: Upper right button LED.
- * 3: Lower left button LED.
- * 4: Lower right button LED.
- * 5: A0 pin.
- * 6: A1 pin.
- * 7: A2 pin.
- * 8: A3 pin.
- * 9: A4 pin.
- * 10: A5 pin.
+ * 3: Lower right button LED.
+ * 4: Lower left button LED.
  */
 static unsigned int simon_led_pin_mapping[] =
 {
   UPPER_LEFT_LED_ARDUINO,
   UPPER_RIGHT_LED_ARDUINO,
-  LOWER_LEFT_LED_ARDUINO,
   LOWER_RIGHT_LED_ARDUINO,
-  A0,
-  A1,
-  A2,
-  A3,
-  A4,
-  A5
+  LOWER_LEFT_LED_ARDUINO
 };
 
 static unsigned int simon_button_pin_mapping[] =
 {
   UPPER_LEFT_BUTTON_ARDUINO,
   UPPER_RIGHT_BUTTON_ARDUINO,
-  LOWER_LEFT_BUTTON_ARDUINO,
   LOWER_RIGHT_BUTTON_ARDUINO
+  LOWER_LEFT_BUTTON_ARDUINO,
 };
-
-static bool valid_simon_led_pin(unsigned int simon_pin)
-{
-  // Range [1, dim(simon_led_pin_mapping)] okay.
-  return simon_pin >= 0 && simon_pin < DIM(simon_led_pin_mapping);
-}
-
-static bool valid_simon_button_pin(unsigned int simon_pin)
-{
-  // Range [1, dim(simon_button_pin_mapping)] okay.
-  return simon_pin >= 0 && simon_pin < DIM(simon_button_pin_mapping);
-}
 
 void wait_this_many_seconds(float seconds)
 {
@@ -59,7 +35,7 @@ void wait_this_many_seconds(float seconds)
 
 bool turn_on_light(unsigned int simon_pin)
 {
-  if (!valid_simon_led_pin(simon_pin))
+  if (simon_pin >= DIM(simon_led_pin_mapping))
   {
     return false;
   }
@@ -70,7 +46,7 @@ bool turn_on_light(unsigned int simon_pin)
 
 bool turn_off_light(unsigned int simon_pin)
 {
-  if (!valid_simon_led_pin(simon_pin))
+  if (simon_pin >= DIM(simon_led_pin_mapping))
   {
     return false;
   }
@@ -101,8 +77,7 @@ bool turn_on_all_lights()
 
 bool is_button_pressed(unsigned int button)
 {
-  if (!valid_simon_button_pin(button))
-  {
+  if (button >= DIM(simon_button_pin_mapping)) {
     // Nonexistent buttons are not pressed.
     return false;
   }
