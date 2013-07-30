@@ -14,7 +14,7 @@
 
 #define hear_string() void handle_string(const char *received_string, size_t received_len)
 
-#define string_is_equal_to(str) (strncmp(received_string, (str), received_len) == 0 \
+#define we_received_string(str) (strncmp(received_string, (str), received_len) == 0 \
     ? true \
     : false)
 
