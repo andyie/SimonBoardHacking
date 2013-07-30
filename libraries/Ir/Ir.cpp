@@ -26,6 +26,16 @@
  */
 #define IR_RECEIVER_PIN A1
 
+/**
+ * The Arduino pin connected to the TX indicator LED.
+ */
+#define TX_INDICATOR_PIN A3
+
+/**
+ * The Arduino pin connected to the RX indicator LED.
+ */
+#define RX_INDICATOR_PIN A4
+
 /*
  * TX definitions.
  */
@@ -247,12 +257,14 @@ static void decode_datagram(char* chars, size_t & num_chars);
  * Initialize the IR communications module.
  */
 void ir_init() {
-  pinMode(A2, OUTPUT);
-
   ir_tx_init();
   ir_rx_init();
 
-  ir_tx_start();
+  pinMode(TX_INDICATOR_PIN, OUTPUT);
+  pinMode(RX_INDICATOR_PIN, OUTPUT);
+
+  digitalWrite(TX_INDICATOR_PIN, LOW);
+  digitalWrite(RX_INDICATOR_PIN, LOW);
 }
 
 /**
@@ -337,6 +349,11 @@ void ir_tx_init() {
  */
 void ir_rx_start() {
   /*
+   * Shine the indicator.
+   */
+  digitalWrite(RX_INDICATOR_PIN, HIGH);
+
+  /*
    * Reset RX state. Since IR sampling should be started on a falling edge, the
    * starting level is false (low).
    */
@@ -358,6 +375,11 @@ void ir_rx_start() {
  */
 void ir_rx_stop() {
   /*
+   * Douse the indicator.
+   */
+  digitalWrite(RX_INDICATOR_PIN, LOW);
+
+  /*
    * Disable the worker's interrupt.
    */
   TCCR1B &= ~_BV(CS10);
@@ -372,6 +394,11 @@ void ir_rx_stop() {
  * Starts the TX worker.
  */
 void ir_tx_start() {
+  /*
+   * Shine the indicator LED.
+   */
+  digitalWrite(TX_INDICATOR_PIN, HIGH);
+
   /*
    * Ignore repeated calls. This releases users from having to maintain TX
    * state. It also means TX can turn itself off without telling anyone.
@@ -403,6 +430,11 @@ void ir_tx_start() {
  */
 void ir_tx_stop()
 {
+  /*
+   * Douse the indicator LED.
+   */
+  digitalWrite(TX_INDICATOR_PIN, LOW);
+
   tx_started = false;
   TCCR0B &= ~(_BV(CS01) | _BV(CS00));
 }
