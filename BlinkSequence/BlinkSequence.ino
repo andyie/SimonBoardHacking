@@ -3,19 +3,19 @@
 
 void repeat()
 {
-  turn_on_light(1);
+  turn_on_light(upper_left_light);
   wait_this_many_seconds(0.5);
-  turn_off_light(1);
+  turn_off_light(upper_left_light);
 
-  turn_on_light(2);
+  turn_on_light(upper_right_light);
   wait_this_many_seconds(0.5);
-  turn_off_light(2);
+  turn_off_light(upper_right_light);
 
-  turn_on_light(3);
+  turn_on_light(lower_right_light);
   wait_this_many_seconds(0.5);
-  turn_off_light(3);
+  turn_off_light(lower_right_light);
 
-  turn_on_light(4);
+  turn_on_light(lower_left_light);
   wait_this_many_seconds(0.5);
-  turn_off_light(4);
+  turn_off_light(lower_left_light);
 }
