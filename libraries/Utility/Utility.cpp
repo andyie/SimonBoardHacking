@@ -24,8 +24,8 @@ static unsigned int simon_button_pin_mapping[] =
 {
   UPPER_LEFT_BUTTON_ARDUINO,
   UPPER_RIGHT_BUTTON_ARDUINO,
-  LOWER_RIGHT_BUTTON_ARDUINO
-  LOWER_LEFT_BUTTON_ARDUINO,
+  LOWER_RIGHT_BUTTON_ARDUINO,
+  LOWER_LEFT_BUTTON_ARDUINO
 };
 
 void wait_this_many_seconds(float seconds)
