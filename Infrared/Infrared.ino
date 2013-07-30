@@ -43,13 +43,13 @@ hear_event(event_lower_left_light_off) {
   announce_event(event_lower_left_light_off);
 }
 
-hear_string() {
-  if (we_received_string("turn on upper left")) {
+hear_chat() {
+  if (we_received_chat("turn on upper left")) {
     turn_on_light(upper_left_light);
     announce_event(event_upper_left_light_on);
   }
 
-  if (we_received_string("turn off upper left")) {
+  if (we_received_chat("turn off upper left")) {
     turn_off_light(upper_left_light);
     announce_event(event_upper_left_light_off);
   }
