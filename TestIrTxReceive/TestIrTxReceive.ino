@@ -4,6 +4,10 @@
 #define IR_RECEIVER_PIN A1
 #define CONNECTION_INDICATOR_PIN A5
 
+#define SRSLY_OFF 100
+
+static unsigned long srsly_count = 0;
+
 static const char str[] = "Hello, world";
 static char buf[128];
 
@@ -32,16 +36,21 @@ void loop()
     Serial.println();
   }
 
-  if (count % 100 == 0) {
+  if (count % 10000 == 0) {
     if (ir_write(str, sizeof(str)) == 0) {
       Serial.println("Sending.");
     }
   }
 
   if (!digitalRead(IR_RECEIVER_PIN)) {
+    srsly_count = 0;
     digitalWrite(CONNECTION_INDICATOR_PIN, HIGH);
   } else {
-    digitalWrite(CONNECTION_INDICATOR_PIN, LOW);
+    if (srsly_count < SRSLY_OFF) {
+      ++srsly_count;
+    } else {
+      digitalWrite(CONNECTION_INDICATOR_PIN, LOW);
+    }
   }
 
   ++count;
