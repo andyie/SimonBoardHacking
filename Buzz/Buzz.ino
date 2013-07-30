@@ -3,14 +3,14 @@
 
 void repeat()
 {
-  if (is_button_pressed(1) == true)
+  if (is_button_pressed(upper_left_button) == true)
   {
     start_buzzing(200);
-    turn_on_light(1);
+    turn_on_light(upper_left_light);
   }
-  if (is_button_pressed(1) == false)
+  if (is_button_pressed(upper_left_button) == false)
   {
-    turn_off_light(1);
+    turn_off_light(upper_left_light);
     stop_buzzing();
   }
 }
