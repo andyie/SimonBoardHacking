@@ -3,13 +3,30 @@
 
 #include "hardware_versions.h"
 
-/*
- * Custom pin mapping for these utility functions.
+/**
+ * Gets the dimension of an array.
+ *
+ * @param array The array.
+ *
+ * @return The array's dimension.
  */
-#define upper_left_light 1
-#define upper_right_light 2
+#define DIM(array) (sizeof(array) / sizeof((array)[0]))
+
+/*
+ * Custom LED pin mapping for these utility functions.
+ */
+#define upper_left_light 0
+#define upper_right_light 1
+#define lower_right_light 2
 #define lower_left_light 3
-#define lower_right_light 4
+
+/*
+ * Custom button pin mapping for these utility functions.
+ */
+#define upper_left_button 0
+#define upper_right_button 1
+#define lower_right_button 2
+#define lower_left_button 3
 
 /*
  * Button LED Arduino pin definitions.

@@ -1,10 +1,6 @@
 #include "Arduino.h"
 #include "Utility.h"
 
-// Other utilities.
-#define DIM(array) (sizeof(array) / sizeof((array)[0]))
-#define LAST_LED_INDEX (DIM(simon_led_pin_mapping))
-
 /**
  * Mapping from Simon pin to Arduino pin.
  *
@@ -46,13 +42,13 @@ static unsigned int simon_button_pin_mapping[] =
 static bool valid_simon_led_pin(unsigned int simon_pin)
 {
   // Range [1, dim(simon_led_pin_mapping)] okay.
-  return simon_pin > 0 && simon_pin <= DIM(simon_led_pin_mapping);
+  return simon_pin >= 0 && simon_pin < DIM(simon_led_pin_mapping);
 }
 
 static bool valid_simon_button_pin(unsigned int simon_pin)
 {
   // Range [1, dim(simon_button_pin_mapping)] okay.
-  return simon_pin > 0 && simon_pin <= DIM(simon_button_pin_mapping);
+  return simon_pin >= 0 && simon_pin < DIM(simon_button_pin_mapping);
 }
 
 void wait_this_many_seconds(float seconds)
@@ -67,7 +63,7 @@ bool turn_on_light(unsigned int simon_pin)
     return false;
   }
 
-  digitalWrite(simon_led_pin_mapping[simon_pin - 1], HIGH);
+  digitalWrite(simon_led_pin_mapping[simon_pin], HIGH);
   return true;
 }
 
@@ -78,13 +74,13 @@ bool turn_off_light(unsigned int simon_pin)
     return false;
   }
 
-  digitalWrite(simon_led_pin_mapping[simon_pin - 1], LOW);
+  digitalWrite(simon_led_pin_mapping[simon_pin], LOW);
   return true;
 }
 
 bool turn_off_all_lights()
 {
-  for (unsigned int i = 1; i <= LAST_LED_INDEX; ++i) {
+  for (unsigned int i = 0; i < 4; ++i) {
     if (!turn_off_light(i)) {
       return false;
     }
@@ -94,7 +90,7 @@ bool turn_off_all_lights()
 
 bool turn_on_all_lights()
 {
-  for (unsigned int i = 1; i <= LAST_LED_INDEX; ++i) {
+  for (unsigned int i = 0; i <= 4; ++i) {
     if (!turn_on_light(i)) {
       return false;
     }
@@ -110,7 +106,7 @@ bool is_button_pressed(unsigned int button)
     return false;
   }
 
-  return !digitalRead(simon_button_pin_mapping[button - 1]);
+  return !digitalRead(simon_button_pin_mapping[button]);
 }
 
 void start_buzzing(unsigned int freq)
