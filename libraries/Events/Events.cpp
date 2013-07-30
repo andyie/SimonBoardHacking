@@ -1,3 +1,4 @@
+#include "Arduino.h"
 #include "Events.h"
 #include "../Ir/Ir.h"
 #include "../Utility/Utility.h"
@@ -6,6 +7,17 @@
 #include <util/delay.h>
 
 #include <HardwareSerial.h>
+
+/**
+ * The Arduino pin connected to the IR receiver. This pin is assumed to be
+ * configured as an input elsewhere.
+ */
+#define IR_RECEIVER_PIN A1
+
+/**
+ * The Arduino pin connected to the connection-established indicator LED.
+ */
+#define CONNECTION_INDICATOR_PIN A5
 
 /**
  * The size of the local buffer.
@@ -24,6 +36,12 @@
  * amount of time, or exceed the TX threshold.
  */
 #define SERIAL_TX_SRSLY_THRESHOLD 100
+
+/**
+ * The number of times the IR receiver has to be off in order for the connection
+ * established LED to turn off.
+ */
+#define NO_CONNECTION_SRSLY_THRESHOLD 100
 
 /**
  * The serial TX threshold. If at least this many bytes are available for
@@ -98,6 +116,11 @@ size_t string_tx_byte_count = 0;
 size_t string_tx_byte_count_constant = 0;
 
 /**
+ * The number of iterations that the IR receiver has been un-asserted.
+ */
+size_t no_connection_count = 0;
+
+/**
  * A buffer for characters.
  */
 char buf[BUFFER_SIZE];
@@ -120,6 +143,12 @@ int process_string(const char *buf, size_t len);
 void repeat() {
   Serial.begin(57600);
   Serial.setTimeout(0);
+
+  /*
+   * Configure connection-established LED.
+   */
+  pinMode(CONNECTION_INDICATOR_PIN, OUTPUT);
+  digitalWrite(CONNECTION_INDICATOR_PIN, LOW);
 
   /*
    * Initialize IR interface.
@@ -162,6 +191,17 @@ void repeat() {
       announce_string(buf, string_tx_byte_count);
       string_tx_byte_count = 0;
       string_tx_byte_count_constant = 0;
+    }
+
+    if (!digitalRead(IR_RECEIVER_PIN)) {
+      no_connection_count = 0;
+      digitalWrite(CONNECTION_INDICATOR_PIN, HIGH);
+    } else {
+      if (no_connection_count < NO_CONNECTION_SRSLY_THRESHOLD) {
+        ++no_connection_count;
+      } else {
+        digitalWrite(CONNECTION_INDICATOR_PIN, LOW);
+      }
     }
   }
 }
