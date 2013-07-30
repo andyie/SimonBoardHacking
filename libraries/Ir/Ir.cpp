@@ -497,8 +497,6 @@ ISR(PCINT1_vect) {
     return;
   }
 
-  digitalWrite(A2, HIGH);
-
   /*
    * The level is low. Proceed with RX sampling.
    */
@@ -566,7 +564,6 @@ ISR(TIMER0_COMPA_vect) {
  * when either a word is received or the signal is determined to be noise.
  */
 ISR(TIMER1_COMPA_vect) {
-      digitalWrite(A2, HIGH);
   /*
    * Level indicates whether an IR signal is present or not. The negation is
    * because the IR receiver has negative logic.
@@ -694,7 +691,6 @@ ISR(TIMER1_COMPA_vect) {
        * Word reception has completed. Push the byte to the ring buffer and
        * deactivate the RX worker.
        */
-      //digitalWrite(A2, HIGH);
       ir_rx_buffer.put(rx_byte);
       ir_rx_stop();
     }
