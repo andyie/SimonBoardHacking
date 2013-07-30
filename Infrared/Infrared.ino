@@ -1,27 +1,31 @@
 #include <SimonBoardHacking.h>
 #include <Ir.h>
+#include <Utility.h>
 #include <Events.h>
 
-hear_event(UPPER_LEFT_LED_ON) {
-
-}
-hear_event(UPPER_LEFT_LED_OFF) {
-}
-
-hear_event(UPPER_RIGHT_LED_ON) {
+hear_event(event_upper_left_light_on) {
+  turn_on_LED(2);
+  announce_event(event_upper_left_light_on);
 }
 
-hear_event(UPPER_RIGHT_LED_OFF) {
+hear_event(event_upper_left_light_off) {
+  turn_on_LED(
 }
 
-hear_event(LOWER_LEFT_LED_ON) {
+hear_event(event_upper_right_light_on) {
 }
 
-hear_event(LOWER_LEFT_LED_OFF) {
+hear_event(event_upper_right_light_off) {
 }
 
-hear_event(LOWER_RIGHT_LED_ON) {
+hear_event(event_lower_left_light_on) {
 }
 
-hear_event(LOWER_RIGHT_LED_OFF) {
+hear_event(event_lower_left_light_off) {
+}
+
+hear_event(event_lower_right_light_on) {
+}
+
+hear_event(event_lower_right_light_off) {
 }

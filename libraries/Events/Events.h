@@ -14,17 +14,14 @@
  * The different events.
  */
 enum event_t {
-    UPPER_LEFT_LED_ON,
-    UPPER_LEFT_LED_OFF,
-
-    UPPER_RIGHT_LED_ON,
-    UPPER_RIGHT_LED_OFF,
-
-    LOWER_LEFT_LED_ON,
-    LOWER_LEFT_LED_OFF,
-
-    LOWER_RIGHT_LED_ON,
-    LOWER_RIGHT_LED_OFF
+    event_upper_left_light_on,
+    event_upper_left_light_off,
+    event_upper_right_light_on,
+    event_upper_right_light_off,
+    event_lower_left_light_on,
+    event_lower_left_light_off,
+    event_lower_right_light_on,
+    event_lower_right_light_off
 };
 
 int announce_event(event_t event);
