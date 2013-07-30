@@ -12,9 +12,9 @@
 
 #define hear_event(e) void hear_event_##e()
 
-#define hear_string() void handle_string(const char *recv_str, size_t recv_len)
+#define hear_string() void handle_string(const char *received_string, size_t received_len)
 
-#define string_is_equal_to(str) (strncmp(recv_str, (str), recv_len) == 0 \
+#define string_is_equal_to(str) (strncmp(received_string, (str), received_len) == 0 \
     ? true \
     : false)
 

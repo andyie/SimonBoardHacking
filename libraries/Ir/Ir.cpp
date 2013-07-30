@@ -6,6 +6,11 @@
 
 #include "HardwareSerial.h"
 
+bool samples[128];
+bool done = false;
+
+static size_t cursor = 0;
+
 /*
  * Hardware allocations:
  *
@@ -623,6 +628,13 @@ ISR(TIMER1_COMPA_vect) {
    * Level indicates whether an IR signal is asserted or not.
    */
   bool level = ir_signal_asserted();
+
+  if (cursor < 128) {
+    samples[cursor++] = level;
+  } else {
+    done = true;
+    cursor = 0;
+  }
 
   if (level == rx_level) {
     /*

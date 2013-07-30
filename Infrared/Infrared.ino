@@ -44,8 +44,5 @@ hear_event(event_lower_left_light_off) {
 }
 
 hear_string() {
-  if (string_is_equal_to("upper left on")) {
-    turn_on_light(upper_left_light);
-    announce_event(event_upper_left_light_on);
-  }
+  announce_string(received_string);
 }
