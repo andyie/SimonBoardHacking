@@ -97,7 +97,7 @@
 /**
  * Start byte for all datagrams that are sent and received
  */
-#define DATAGRAM_START_CHAR ((char)0xA7)
+#define DATAGRAM_START_BYTE ((char)0xA7)
 
 /*
  * RX timer top value. Each run of the timer should be UNIT_TIME / 16.
@@ -201,10 +201,18 @@ static unsigned short rx_level_count;
  */
 static unsigned short rx_edge_count;
 
-/*
- * The length of the datagram that is currently being decoded
+/**
+ * True if the current RX datagram has been synced. This means that the
+ * datagram's start byte has been received, and the rest of the datagram is in
+ * the process of being received.
  */
-static size_t current_rx_datagram_length = 0;
+static bool rx_datagram_synced = false;
+
+/**
+ * The length of the datagram currently being received. Set to 0 if the length
+ * byte has not been received yet.
+ */
+static size_t rx_datagram_len = 0;
 
 static void ir_rx_init();
 static void ir_tx_init();
@@ -228,7 +236,7 @@ static void tx_schedule_append_pulse(bool level, size_t len);
 
 symbol_t get_symbol_from_pulse(size_t count);
 
-static void calculate_crc8();
+static char crc8(const char *buf, size_t len);
 
 static int build_and_stage_datagram(char* chars, size_t num_chars);
 static void decode_datagram(char* chars, size_t & num_chars);
@@ -241,6 +249,8 @@ void ir_init() {
 
   ir_tx_init();
   ir_rx_init();
+
+  ir_tx_start();
 }
 
 /**
@@ -774,201 +784,149 @@ symbol_t get_symbol_from_pulse(size_t count) {
   return symbol_unrecognized;
 }
 
-char calculate_crc8(char* chars, uint8_t num_chars)
+/**
+ * Calculates an 8-bit CRC over the provided buffer.
+ *
+ * @param buf The buffer.
+ * @param len The buffer length.
+ *
+ * @return An 8-bit CRC over the buffer.
+ */
+char crc8(const char *buf, size_t len)
 {
   return (char)0xDF;
 }
 
 /**
- * Creates a datagram using the chars stored in data as the payload
+ * Receive a single IR datagram. If a received datagram is available, the
+ * provided buffer will be populated with its contents, and the provided length
+ * will be updated.
  *
- * @param data The chars that should be in the payload
- * @param len The number of chars that should be sent from data
+ * @param[out] buf The buffer to read the contents of the datagram into.
+ * @param[in,out] len The buffer length. This is updated to reflect the number
+ *                    of bytes actually received.
  *
- * @return An error code; 0 = success, other = failure
+ * @return 0 on success, -1 on failure.
  */
-int build_and_stage_datagram(char* data, size_t len)
+int ir_read(char *buf, size_t &len)
 {
+  char c;
+
   /*
-   * Packet format:
-   * [start byte] [length byte] [byte 0] [byte 1] … [byte len - 1] [checksum]
+   * Sync to the next datagram, if necessary.
    */
-
-  if (ir_tx_buffer.put(DATAGRAM_START_CHAR))
-  {
-    //Failed to put data into ir_tx_buffer
-    return -1;
-  }
-
-  if (ir_tx_buffer.put((char)len))
-  {
-    return -1;
-  }
-
-  for(size_t i = 0; i < len; i++)
-  {
-    if (ir_tx_buffer.put(data[i]))
-    {
-      return -1;
+  while (!rx_datagram_synced && ir_rx_buffer.get(c) == 0) {
+    if (c == DATAGRAM_START_BYTE) {
+      rx_datagram_synced = true;
     }
   }
-  
-  char crc8 = calculate_crc8(data, len);
-  
-  if (ir_tx_buffer.put(crc8))
-  {
+
+  /*
+   * If the datagram hasn't synced, fail.
+   */
+  if (!rx_datagram_synced) {
     return -1;
   }
-  
-  ir_tx_start();
+
+  /*
+   * If the length byte hasn't been received yet, attempt to receive it.
+   */
+  if (rx_datagram_len == 0 && ir_rx_buffer.get(c) == 0) {
+    rx_datagram_len = static_cast<size_t>(c);
+
+    /*
+     * Mark RX as desynced if the length field is 0. Zero-length datagrams are
+     * not allowed.
+     */
+    if (rx_datagram_len == 0) {
+      rx_datagram_synced = false;
+    }
+  }
+
+  /*
+   * If the length hasn't been resolved yet or not all characters have arrived
+   * yet, fail. One additional character, the CRC, is expected.
+   */
+  if (rx_datagram_len == 0 ||
+      ir_rx_buffer.num_elements() < rx_datagram_len + 1) {
+    return -1;
+  }
+
+  /*
+   * Read the datagram contents.
+   */
+  for (size_t i = 0; i < rx_datagram_len; ++i) {
+    ir_rx_buffer.get(buf[i]);
+  }
+
+  /*
+   * Fail if the CRC is invalid.
+   */
+  ir_rx_buffer.get(c);
+  if (crc8(buf, rx_datagram_len) != c) {
+    return -1;
+  }
+
+  /*
+   * Update the user buffer length.
+   */
+  len = rx_datagram_len;
+
+  /*
+   * Update RX datagram state.
+   */
+  rx_datagram_synced = false;
+  rx_datagram_len = 0;
 
   return 0;
 }
 
 /**
- * Attempts to read a datagram from the ir_rx_buffer;
- * If successful, fills data with the datagram's payload
- * and fills len with the number of chars in the payload;
- * Otherwise, sets data to NULL and len to 0
+ * Send a buffer as a single IR datagram.
  *
- * @param data A pointer to the datagram's payload, or NULL
- *             if no datagram was present
+ * @param buf The buffer to send.
+ * @param len The buffer size.
  *
- * @param len The number of chars in the decoded datagram's payload
- *            or 0 if no datagram was present
- *
+ * @return 0 on success, -1 on failure.
  */
-void decode_datagram(char* data, size_t & len)
+int ir_write(const char *buf, size_t len)
 {
-  char current_char = 0;
-
-  if (current_rx_datagram_length == 0)
-  {
-     /*
-      * We aren't in the middle of a datagram;
-      * Find a start byte and a length byte:
-      *
-      * Loop until either only one char is left or 
-      * until we find a start byte
-      */
-    while(ir_rx_buffer.num_elements() >= 2 && current_char != DATAGRAM_START_CHAR)
-    {
-      ir_rx_buffer.get(current_char);
-    }
-
-    /*
-     * Exit if a datagram start byte wasn't found
-     */
-    if (current_char != DATAGRAM_START_CHAR)
-    {
-      data = NULL;
-      len = 0;
-      return;
-    }
-
-    Serial.println("Start byte found");
-
-    /*
-     * Found a datagram start byte; now set the length byte
-     */
-     ir_rx_buffer.get(current_char);
-
-     current_rx_datagram_length = (size_t)current_char;
-
-     Serial.print("current_rx_datagram_length = ");
-     Serial.println(current_rx_datagram_length, DEC);
+  /*
+   * Cancel if the TX ring buffer is not large enough to accommodate the
+   * buffer. The (+3) accounts for the start byte, datagram length, and CRC.
+   */
+  const size_t total_len = len + 3;
+  if (ir_tx_buffer.num_free() < total_len) {
+    return -1;
   }
 
   /*
-   * Either we found a datagram start byte or we are already in the middle
-   * of a datagram; check if enough bytes exist to complete the datagram;
-   *
-   * We require current_rx_datagram_length + 1 bytes;
-   * The +1 is because of the CRC
+   * Cancel if the buffer has zero length or if its length cannot fit in an
+   * 8-bit unsigned integer.
    */
-   if (ir_rx_buffer.num_elements() < current_rx_datagram_length + 1)
-   {
-      Serial.println("Missing chars");
+  if (len == 0 || len > 255) {
+    return -1;
+  }
 
-      //We're missing bytes; exit
-      data = NULL;
-      len = 0;
-      return;
-   }
+  /*
+   * Compute the CRC over the data.
+   */
+  char crc = crc8(buf, len);
 
-    /*
-     * An entire datagram is present;
-     * Store all the bytes up to the buffer length
-     */
-     //TODO: Return error code if current_rx_datagram_length > len
-   for (size_t i = 0; i < current_rx_datagram_length &&  i < len; ++i)
-   {
-       ir_rx_buffer.get(data[i]);
-   }
+  /*
+   * Write all the things.
+   */
+  ir_tx_buffer.put(DATAGRAM_START_BYTE);
+  ir_tx_buffer.put(len);
+  for (size_t i = 0; i < len; ++i) {
+    ir_tx_buffer.put(buf[i]);
+  }
+  ir_tx_buffer.put(crc);
 
-   Serial.println("Got bytes, checking CRC");
+  /*
+   * Start the TX worker. This is a no-op if the worker is already started.
+   */
+  ir_tx_start();
 
-   /*
-    * Check the CRC
-    */
-   char crc8 = calculate_crc8(data, len);
-   ir_rx_buffer.get(current_char);
-
-   if (current_char != crc8)
-   {
-     Serial.println("CRC8 Failed");
-     //This datagram is invalid; free memory
-     //and exit
-     delete[] data;
-
-     data = NULL;
-     len = 0;
-     return;
-   }
-
-   /*
-    * Datagram is valid; reset the current_datagram_length
-    * to look for a new datagram the next time this function is called
-    */
-    current_rx_datagram_length = 0;
-
-    Serial.println("Found datagram");
-
-    return;
-}
-
-/**
- * Sends len chars from data over ir
- *
- * @param data The chars that should be sent
- * @param len The number of chars that should be sent
- *
- * @return An error code; 0 = success, other = failure
- */
-int transmit_chars(char* data, size_t len)
-{
-  build_and_stage_datagram(data, len);
-}
-
-/**
- * Attempts to pull a string from the ir rx buffer;
- * If a full segment of data is present, fills data with the string
- * and fills len with the number of chars in the string;
- * Otherwise, sets data to NULL and len to 0
- *
- * @param data A pointer to the received data, or NULL
- *             if incomplete data was present
- *
- * @param len The number of chars in the received data
- *            or 0 if incomplete data was present
- *
- */
- //TODO: Change docs
-void receive_chars(char* data, size_t & len)
-{
-  decode_datagram(data, len);
-
-  //TODO: Check if payload matches signal
-  //Call callback functions
-  //Clear data
+  return 0;
 }

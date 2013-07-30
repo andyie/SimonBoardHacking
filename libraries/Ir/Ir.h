@@ -14,7 +14,7 @@
 
 void ir_init();
 
-int transmit_chars(char *data, size_t len);
-void receive_chars(char *data, size_t &len);
+int ir_read(char *buf, size_t &len);
+int ir_write(const char *buf, size_t len);
 
 #endif

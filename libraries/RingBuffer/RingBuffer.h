@@ -59,7 +59,7 @@ public:
    *
    * @return The number of chars stored in the ring buffer.
    */
-  size_t num_elements() 
+  size_t num_elements()
   {
     if (head > tail)
     {
@@ -73,6 +73,16 @@ public:
     }
   }
 
+  /**
+   * Get the number of free bytes currently available in the buffer. Note that
+   * the maximum number of elements in the buffer is one less than the buffer's
+   * size (hence the (- 1)).
+   *
+   * @return The number of bytes of free space in the buffer.
+   */
+  size_t num_free() {
+    return size - num_elements() - 1;
+  }
 
 private:
   /**
