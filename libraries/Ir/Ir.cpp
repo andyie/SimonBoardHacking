@@ -17,8 +17,10 @@
 /**
  * IR signal polarity. If true, the signal will be low when idle. When false,
  * the signal will be high when idle.
+ *
+ * Setting this value to true has been causing problems. Not sure why.
  */
-#define IR_POSITIVE_POLARITY true
+#define IR_POSITIVE_POLARITY false
 
 /**
  * The Arduino pin connected to the IR LED. Set to 11 for OC2A. This must not
@@ -246,7 +248,7 @@ static void ir_rx_edge_disable();
 
 static void ir_led_deassert();
 static void ir_led_assert();
-static bool ir_receiver_asserted();
+static bool ir_signal_asserted();
 
 static void ir_led_on();
 static void ir_led_off();
@@ -364,8 +366,7 @@ void ir_rx_start() {
   digitalWrite(RX_INDICATOR_PIN, HIGH);
 
   /*
-   * Reset RX state. Since IR sampling should be started on a falling edge, the
-   * starting level is false (low).
+   * Reset RX state. The starting level is un-asserted.
    */
   rx_level = false;
   rx_byte = 0;
@@ -499,7 +500,7 @@ void ir_led_deassert() {
  *
  * @return True if the current IR signal is asserted.
  */
-bool ir_receiver_asserted() {
+bool ir_signal_asserted() {
   /*
    * Grab a sample from the receiver. The negative accounts for the receiver
    * internally using negative logic. A true value here indicates that an IR
@@ -509,7 +510,7 @@ bool ir_receiver_asserted() {
 
   /*
    * With positive logic, a true sample means the signal is asserted. With
-   * negative logic, the opposite is true.
+   * negative logic, 
    */
   return IR_POSITIVE_POLARITY ? sample : !sample;
 }
@@ -542,17 +543,17 @@ ISR(PCINT1_vect) {
   /*
    * The level indicates whether an IR signal is present.
    */
-  bool asserted = ir_receiver_asserted();
+  bool asserted = ir_signal_asserted();
 
   /*
-   * IR is not asserted. In practice, this should not occur. Anyway, let it be.
+   * IR is not asserted. False alarm; don't do anything.
    */
   if (!asserted) {
     return;
   }
 
   /*
-   * The level is low. Proceed with RX sampling.
+   * The level is asserted. Proceed with RX sampling.
    */
   ir_rx_edge_disable();
   ir_rx_start();
@@ -621,7 +622,7 @@ ISR(TIMER1_COMPA_vect) {
   /*
    * Level indicates whether an IR signal is asserted or not.
    */
-  bool level = ir_receiver_asserted();
+  bool level = ir_signal_asserted();
 
   if (level == rx_level) {
     /*
