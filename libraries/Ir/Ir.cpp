@@ -1,7 +1,8 @@
 #include "Arduino.h"
 #include "Ir.h"
 #include "../RingBuffer/RingBuffer.h"
-#include "stdint.h"
+#include <stdint.h>
+#include <stddef.h>
 
 /*
  * Hardware allocations:
@@ -202,7 +203,7 @@ static unsigned short rx_edge_count;
 
 /*
  * The length of the datagram that is currently being decoded
- */ 
+ */
 static size_t current_rx_datagram_length = 0;
 
 static void ir_rx_init();
@@ -210,9 +211,6 @@ static void ir_tx_init();
 
 static void ir_rx_start();
 static void ir_rx_stop();
-
-static void ir_rx_on();
-static void ir_rx_off();
 
 static void ir_tx_start();
 static void ir_tx_stop();
@@ -455,6 +453,8 @@ ISR(PCINT1_vect) {
     return;
   }
 
+  digitalWrite(A2, HIGH);
+
   /*
    * The level is low. Proceed with RX sampling.
    */
@@ -522,6 +522,7 @@ ISR(TIMER0_COMPA_vect) {
  * when either a word is received or the signal is determined to be noise.
  */
 ISR(TIMER1_COMPA_vect) {
+      digitalWrite(A2, HIGH);
   /*
    * Level indicates whether an IR signal is present or not. The negation is
    * because the IR receiver has negative logic.
@@ -649,7 +650,7 @@ ISR(TIMER1_COMPA_vect) {
        * Word reception has completed. Push the byte to the ring buffer and
        * deactivate the RX worker.
        */
-      digitalWrite(A2, HIGH);
+      //digitalWrite(A2, HIGH);
       ir_rx_buffer.put(rx_byte);
       ir_rx_stop();
     }
@@ -658,7 +659,7 @@ ISR(TIMER1_COMPA_vect) {
 
 /**
  * Prepares the TX schedule for a new byte. The TX schedule cursor is
- * reiniitalized to zero, and the schedule length is set.
+ * reinitialized to zero, and the schedule length is set.
  *
  * @param tx_byte The byte to transmit.
  */
