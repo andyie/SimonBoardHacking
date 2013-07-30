@@ -854,8 +854,6 @@ int ir_read(char *buf, size_t &len)
     return -1;
   }
 
-  memset(buf, 'A', len);
-
   /*
    * Read the datagram contents.
    */
