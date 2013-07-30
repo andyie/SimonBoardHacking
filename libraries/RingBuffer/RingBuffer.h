@@ -61,7 +61,7 @@ public:
    */
   size_t num_elements()
   {
-    if (head > tail)
+    if (head >= tail)
     {
       //All characters are stored between head and tail
       return head - tail;

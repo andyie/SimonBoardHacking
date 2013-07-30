@@ -4,6 +4,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include "HardwareSerial.h"
+
 /*
  * Hardware allocations:
  *
@@ -852,6 +854,8 @@ int ir_read(char *buf, size_t &len)
     return -1;
   }
 
+  memset(buf, 'A', len);
+
   /*
    * Read the datagram contents.
    */
@@ -864,6 +868,8 @@ int ir_read(char *buf, size_t &len)
    */
   ir_rx_buffer.get(c);
   if (crc8(buf, rx_datagram_len) != c) {
+    rx_datagram_synced = false;
+    rx_datagram_len = 0;
     return -1;
   }
 

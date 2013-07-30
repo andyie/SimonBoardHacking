@@ -11,11 +11,12 @@ void setup()
   Serial.begin(57600);
 
   ir_init();
-  ir_write(str, sizeof(str));
 }
 
 void loop()
 {
+  static int count = 0;
+
   size_t len = sizeof(buf);
   if (ir_read(buf, len) == 0) {
     Serial.println("Got message: ");
@@ -24,4 +25,12 @@ void loop()
     }
     Serial.println();
   }
+
+  if (count % 100 == 0) {
+    if (ir_write(str, sizeof(str)) == 0) {
+      Serial.println("Sending.");
+    }
+  }
+
+  ++count;
 }
