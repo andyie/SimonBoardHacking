@@ -4,22 +4,22 @@
 
 void whatToDoOnStartDot()
 {
-  turn_on_LED(1);
+  turn_on_light(1);
 }
 
 void whatToDoOnEndDot()
 {
-  turn_off_LED(1);
+  turn_off_light(1);
 }
 
 void whatToDoOnStartDash()
 {
-  turn_on_LED(1);
+  turn_on_light(1);
 }
 
 void whatToDoOnEndDash()
 {
-  turn_off_LED(1);
+  turn_off_light(1);
 }
 
 void repeat()

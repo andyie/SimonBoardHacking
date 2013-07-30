@@ -23,10 +23,10 @@
  */
 static unsigned int simon_led_pin_mapping[] =
 {
-  UPPER_LEFT_LED,
-  UPPER_RIGHT_LED,
-  LOWER_LEFT_LED,
-  LOWER_RIGHT_LED,
+  UPPER_LEFT_LED_ARDUINO,
+  UPPER_RIGHT_LED_ARDUINO,
+  LOWER_LEFT_LED_ARDUINO,
+  LOWER_RIGHT_LED_ARDUINO,
   A0,
   A1,
   A2,
@@ -37,10 +37,10 @@ static unsigned int simon_led_pin_mapping[] =
 
 static unsigned int simon_button_pin_mapping[] =
 {
-  UPPER_LEFT_BUTTON,
-  UPPER_RIGHT_BUTTON,
-  LOWER_LEFT_BUTTON,
-  LOWER_RIGHT_BUTTON
+  UPPER_LEFT_BUTTON_ARDUINO,
+  UPPER_RIGHT_BUTTON_ARDUINO,
+  LOWER_LEFT_BUTTON_ARDUINO,
+  LOWER_RIGHT_BUTTON_ARDUINO
 };
 
 static bool valid_simon_led_pin(unsigned int simon_pin)
@@ -60,7 +60,7 @@ void wait_this_many_seconds(float seconds)
   delay((unsigned int)(seconds * 1000));
 }
 
-bool turn_on_LED(unsigned int simon_pin)
+bool turn_on_light(unsigned int simon_pin)
 {
   if (!valid_simon_led_pin(simon_pin))
   {
@@ -71,7 +71,7 @@ bool turn_on_LED(unsigned int simon_pin)
   return true;
 }
 
-bool turn_off_LED(unsigned int simon_pin)
+bool turn_off_light(unsigned int simon_pin)
 {
   if (!valid_simon_led_pin(simon_pin))
   {
@@ -82,20 +82,20 @@ bool turn_off_LED(unsigned int simon_pin)
   return true;
 }
 
-bool turn_off_all_LEDs()
+bool turn_off_all_lights()
 {
   for (unsigned int i = 1; i <= LAST_LED_INDEX; ++i) {
-    if (!turn_off_LED(i)) {
+    if (!turn_off_light(i)) {
       return false;
     }
   }
   return true;
 }
 
-bool turn_on_all_LEDs()
+bool turn_on_all_lights()
 {
   for (unsigned int i = 1; i <= LAST_LED_INDEX; ++i) {
-    if (!turn_on_LED(i)) {
+    if (!turn_on_light(i)) {
       return false;
     }
   }

@@ -3,9 +3,9 @@
 
 void repeat()
 {
-  turn_on_LED(1);
+  turn_on_light(1);
   wait_this_many_seconds(0.5);
 
-  turn_off_LED(1);
+  turn_off_light(1);
   wait_this_many_seconds(0.5);
 }
