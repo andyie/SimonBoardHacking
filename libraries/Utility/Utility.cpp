@@ -1,5 +1,6 @@
 #include "Arduino.h"
 #include "Utility.h"
+#include <util/delay.h>
 
 /**
  * Mapping from Simon pin to Arduino pin.
@@ -53,7 +54,7 @@ static bool valid_simon_button_pin(unsigned int simon_pin)
 
 void wait_this_many_seconds(float seconds)
 {
-  delay((unsigned int)(seconds * 1000));
+  _delay_ms((unsigned int)(seconds * 1000));
 }
 
 bool turn_on_light(unsigned int simon_pin)
